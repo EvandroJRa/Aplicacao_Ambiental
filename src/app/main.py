@@ -1,3 +1,4 @@
+from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -124,3 +125,14 @@ async def upload_documento(
     await db.refresh(novo_doc)
     
     return novo_doc
+
+# TRANSFORMA A PASTA "STORAGE" EM UMA URL ACESSÍVEL PELO NAVEGADOR
+app.mount("/storage", StaticFiles(directory="storage"), name="storage")
+
+@app.get("/clientes/{cliente_id}/documentos/", response_model=List[schemas.DocumentoResponse])
+async def listar_documentos_do_cliente(cliente_id: int, db: AsyncSession = Depends(get_db)):
+    # Faz um SELECT * FROM documentos WHERE cliente_id = X
+    resultado = await db.execute(
+        select(Documento).where(Documento.cliente_id == cliente_id)
+    )
+    return resultado.scalars().all()
