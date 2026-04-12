@@ -47,3 +47,8 @@ share/python-wheels/
 postgres_data/
 .dockerignore
 docker-compose.override.yml
+
+
+
+# -- TOKENS E CREDENCIAIS --
+token.txt
