@@ -1,6 +1,8 @@
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+from datetime import date
+
 
 # A base de dados que o usuário precisa preencher
 class ClienteBase(BaseModel):
@@ -20,3 +22,43 @@ class ClienteResponse(ClienteBase):
 
     class Config:
         from_attributes = True # Permite que o Pydantic leia dados do SQLAlchemy
+
+
+# --- Validação de dados para os pontos de monitoramento ---
+
+class PontoMonitoramentoBase(BaseModel):
+    nome_ponto: str
+    tipo: str # Ex: "Poço de Monitoramento", "Efluente Bruto"
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    ativo: bool = True
+
+class PontoMonitoramentoCreate(PontoMonitoramentoBase):
+    pass
+
+class PontoMonitoramentoResponse(PontoMonitoramentoBase):
+    id: int
+    cliente_id: int
+
+    class Config:
+        from_attributes = True        
+
+
+# ----Atualizar filtros
+
+class DocumentoBase(BaseModel):
+    tipo_documento: str # Ex: "Laudo Laboratorial", "Ofício"
+    competencia: Optional[date] = None
+
+class DocumentoCreate(DocumentoBase):
+    ponto_id: Optional[int] = None # Opcional, pois pode ser um documento geral da empresa
+
+class DocumentoResponse(DocumentoBase):
+    id: int
+    cliente_id: int
+    ponto_id: Optional[int]
+    url_arquivo: str # Onde o arquivo está salvo
+    data_upload: datetime
+
+    class Config:
+        from_attributes = True

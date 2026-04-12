@@ -11,6 +11,12 @@ API desenvolvida para o gerenciamento de relatórios de monitoramento de efluent
 * **Migrações:** Alembic
 * **Validação de Dados:** Pydantic
 
+## ✨ Funcionalidades Atuais
+
+* **Gestão de Clientes:** Cadastro e listagem de empresas e consultados.
+* **Pontos de Monitoramento:** Cadastro de poços e pontos de efluentes vinculados de forma relacional aos clientes (Rotas Aninhadas).
+* **Gestão de Documentos (Upload):** Recebimento, validação de segurança e armazenamento em disco de laudos laboratorias, ofícios e fotos de campo (suporte a PDF, JPG, PNG, DOCX e XLSX).
+
 ## ⚙️ Pré-requisitos
 
 Para rodar este projeto, você precisará ter instalado em sua máquina:
@@ -42,7 +48,7 @@ alembic upgrade head
 
 **5. Instale as dependências e inicie o servidor:**
 \`\`\`bash
-pip install fastapi pydantic uvicorn sqlalchemy asyncpg alembic python-dotenv
+pip install fastapi pydantic uvicorn sqlalchemy asyncpg alembic python-dotenv python-multipart
 uvicorn src.app.main:app --reload
 \`\`\`
 
