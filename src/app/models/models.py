@@ -40,7 +40,6 @@ class PontoMonitoramento(Base):
     cliente: Mapped["Cliente"] = relationship(back_populates="pontos")
     documentos: Mapped[List["Documento"]] = relationship(back_populates="ponto")
 
-
 class Processo(Base):
     __tablename__ = "processos"
 
