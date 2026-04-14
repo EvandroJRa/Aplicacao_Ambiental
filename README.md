@@ -44,3 +44,22 @@ streamlit run frontend/app.py
 Acesse os endpoints e testes via Swagger:
 * **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
 * **Portal Web:** [http://localhost:8501](http://localhost:8501)
+
+## 🔒 Segurança e Autenticação (JWT)
+
+Esta API é protegida por autenticação OAuth2 com tokens JWT (JSON Web Tokens). A maioria das rotas está trancada e exige um "crachá digital" (token) para ser acessada.
+
+### Como Autenticar via Swagger UI:
+
+1. **Crie um Usuário (Apenas 1ª vez):**
+   - Acesse a rota pública `POST /usuarios/`.
+   - Insira um e-mail e senha.
+
+2. **Faça o Login:**
+   - No topo da página do Swagger, clique no botão verde **Authorize** (ou use a rota `POST /token`).
+   - Insira seu e-mail (no campo username) e sua senha.
+   - O Swagger guardará seu Token automaticamente para as próximas requisições.
+
+3. **Acesse as Rotas Protegidas:**
+   - Com o login feito, todas as rotas com o ícone de **cadeado** 🔒 estão liberadas.
+   - Rotas protegidas: Clientes, Pontos de Monitoramento e Upload de Documentos.

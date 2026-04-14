@@ -27,6 +27,9 @@ from fastapi import FastAPI, Depends, HTTPException, status
 # ==========================================
 app = FastAPI(title="API - Portal Ambiental", version="1.0.0")
 
+# O Guarda-Costas: Define que a rota de login é a "/token" (Deve ficar solto no código, logo após criar o 'app')
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
 # Transforma a pasta "storage" em uma URL acessível pelo navegador
 os.makedirs("storage", exist_ok=True)
 app.mount("/storage", StaticFiles(directory="storage"), name="storage")
@@ -39,15 +42,22 @@ def raiz():
 # ROTAS DE CLIENTES
 # ==========================================
 @app.post("/clientes/", response_model=schemas.ClienteResponse)
-async def criar_cliente(cliente: schemas.ClienteCreate, db: AsyncSession = Depends(get_db)):
+async def criar_cliente(
+    cliente: schemas.ClienteCreate, 
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(oauth2_scheme) # <--- O Segurança da porta!
+):
     novo_cliente = Cliente(**cliente.model_dump())
-    db.add(novo_cliente)
+    db.add(novo_cliente) 
     await db.commit()
     await db.refresh(novo_cliente) 
     return novo_cliente
 
 @app.get("/clientes/", response_model=List[schemas.ClienteResponse])
-async def listar_clientes(db: AsyncSession = Depends(get_db)):
+async def listar_clientes(
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(oauth2_scheme) # <--- CADEADO AQUI
+):
     resultado = await db.execute(select(Cliente))
     return resultado.scalars().all()
 
@@ -58,24 +68,22 @@ async def listar_clientes(db: AsyncSession = Depends(get_db)):
 async def criar_ponto_monitoramento(
     cliente_id: int, 
     ponto: schemas.PontoMonitoramentoCreate, 
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(oauth2_scheme) # <--- CADEADO AQUI
 ):
-    cliente = await db.get(Cliente, cliente_id)
-    if not cliente:
-        raise HTTPException(status_code=404, detail="Cliente não encontrado no sistema.")
-
     novo_ponto = PontoMonitoramento(**ponto.model_dump(), cliente_id=cliente_id)
     db.add(novo_ponto)
     await db.commit()
     await db.refresh(novo_ponto)
-    
     return novo_ponto
 
 @app.get("/clientes/{cliente_id}/pontos/", response_model=List[schemas.PontoMonitoramentoResponse])
-async def listar_pontos_do_cliente(cliente_id: int, db: AsyncSession = Depends(get_db)):
-    resultado = await db.execute(
-        select(PontoMonitoramento).where(PontoMonitoramento.cliente_id == cliente_id)
-    )
+async def listar_pontos_do_cliente(
+    cliente_id: int, 
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(oauth2_scheme) # <--- CADEADO AQUI
+):
+    resultado = await db.execute(select(PontoMonitoramento).where(PontoMonitoramento.cliente_id == cliente_id))
     return resultado.scalars().all()
 
 # ==========================================
@@ -98,7 +106,9 @@ async def upload_documento(
     ponto_id: Optional[int] = Form(None),
     competencia: Optional[date] = Form(None),
     arquivo: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(oauth2_scheme) # <--- CADEADO AQUI
+    
 ):
     
     if ponto_id == 0:
@@ -147,9 +157,6 @@ async def upload_documento(
 
     # 6. Resposta Imediata
     return novo_doc
-
-# O Guarda-Costas: Define que a rota de login é a "/token" (Deve ficar solto no código, logo após criar o 'app')
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 @app.get("/clientes/{cliente_id}/documentos/", response_model=List[schemas.DocumentoResponse])
 async def listar_documentos_do_cliente(
