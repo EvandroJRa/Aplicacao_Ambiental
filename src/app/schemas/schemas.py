@@ -62,3 +62,25 @@ class DocumentoResponse(DocumentoBase):
 
     class Config:
         from_attributes = True
+
+
+# ==========================================
+# SCHEMAS DE USUÁRIO E AUTENTICAÇÃO
+# ==========================================
+
+class UsuarioCreate(BaseModel):
+    email: str
+    senha: str
+    cliente_id: int
+
+class UsuarioResponse(BaseModel):
+    id: int
+    email: str
+    cliente_id: int
+    
+    class Config:
+        from_attributes = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str

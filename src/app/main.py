@@ -16,6 +16,12 @@ from src.app.models.models import Cliente, PontoMonitoramento, Documento
 from src.app.schemas import schemas
 from src.app.notificacoes import enviar_aviso_laudo_whatsapp
 
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from src.app.seguranca import obter_hash_senha, verificar_senha, criar_token_acesso
+from src.app.models.models import Usuario
+from fastapi import FastAPI, Depends, HTTPException, status
+
+
 # ==========================================
 # INICIALIZAÇÃO E CONFIGURAÇÕES DA API
 # ==========================================
@@ -142,9 +148,76 @@ async def upload_documento(
     # 6. Resposta Imediata
     return novo_doc
 
+# O Guarda-Costas: Define que a rota de login é a "/token" (Deve ficar solto no código, logo após criar o 'app')
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
 @app.get("/clientes/{cliente_id}/documentos/", response_model=List[schemas.DocumentoResponse])
-async def listar_documentos_do_cliente(cliente_id: int, db: AsyncSession = Depends(get_db)):
+async def listar_documentos_do_cliente(
+    cliente_id: int, 
+    db: AsyncSession = Depends(get_db),
+    # ==================================================
+    # É ESTA LINHA AQUI QUE FAZ O BOTÃO APARECER NA TELA:
+    token: str = Depends(oauth2_scheme) 
+    # ==================================================
+):
     resultado = await db.execute(
         select(Documento).where(Documento.cliente_id == cliente_id)
     )
     return resultado.scalars().all()
+
+# ==========================================
+# ROTAS DE USUÁRIOS E SEGURANÇA
+# ==========================================
+
+@app.post("/usuarios/", response_model=schemas.UsuarioResponse)
+async def criar_usuario(usuario: schemas.UsuarioCreate, db: AsyncSession = Depends(get_db)):
+    # 1. Verifica se o e-mail já existe no banco
+    resultado = await db.execute(select(Usuario).where(Usuario.email == usuario.email))
+    usuario_existente = resultado.scalars().first()
+    
+    if usuario_existente:
+        raise HTTPException(status_code=400, detail="Este e-mail já está cadastrado.")
+
+    # 2. Embaralha a senha antes de salvar
+    senha_criptografada = obter_hash_senha(usuario.senha)
+    
+    # 3. Salva no banco de dados
+    novo_usuario = Usuario(
+        email=usuario.email,
+        senha_hash=senha_criptografada,
+        cliente_id=usuario.cliente_id
+    )
+    
+    db.add(novo_usuario)
+    await db.commit()
+    await db.refresh(novo_usuario)
+    
+    return novo_usuario
+
+
+@app.post("/token", response_model=schemas.Token)
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+    # O OAuth2PasswordRequestForm usa o padrão 'username' e 'password'. 
+    # No nosso caso, o 'username' será o e-mail digitado pelo usuário.
+    
+    # 1. Busca o usuário no banco pelo e-mail
+    resultado = await db.execute(select(Usuario).where(Usuario.email == form_data.username))
+    usuario = resultado.scalars().first()
+
+    # 2. Verifica se o usuário existe e se a senha bate
+    if not usuario or not verificar_senha(form_data.password, usuario.senha_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="E-mail ou senha incorretos",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # 3. Se deu tudo certo, fabrica o "crachá" (Token JWT)
+    # Colocamos o email e o ID do cliente dentro do token para usarmos nas outras rotas depois
+    dados_token = {
+        "sub": usuario.email, 
+        "cliente_id": usuario.cliente_id
+    }
+    token_gerado = criar_token_acesso(dados=dados_token)
+    
+    return {"access_token": token_gerado, "token_type": "bearer"}

@@ -45,6 +45,19 @@ def enviar_aviso_laudo_whatsapp(numero_destino: str, nome_cliente: str, nome_doc
         }
     }
 
+    # # Trocando temporariamente de 'text' para 'template' para forçar a entrega
+    # payload = {
+    #     "messaging_product": "whatsapp",
+    #     "to": numero_destino,
+    #     "type": "template",
+    #     "template": {
+    #         "name": "hello_world",
+    #         "language": {
+    #             "code": "en_US"
+    #         }
+    #     }
+    # }
+
     try:
         logger.info(f"Enviando notificação para {numero_destino}...")
         resposta = requests.post(url, headers=headers, json=payload)
