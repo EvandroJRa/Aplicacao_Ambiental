@@ -63,3 +63,17 @@ Esta API é protegida por autenticação OAuth2 com tokens JWT (JSON Web Tokens)
 3. **Acesse as Rotas Protegidas:**
    - Com o login feito, todas as rotas com o ícone de **cadeado** 🔒 estão liberadas.
    - Rotas protegidas: Clientes, Pontos de Monitoramento e Upload de Documentos.
+  
+## 🖥️ Interfaces Visuais (Frontends)
+
+O projeto possui duas aplicações separadas construídas com Streamlit, garantindo que clientes e administradores tenham acessos e visões totalmente isoladas.
+
+**1. Portal do Cliente (`portal.py`)**
+- Acesso exclusivo para os clientes da consultoria.
+- Permite visualizar e baixar os laudos técnicos enviados.
+- **Como rodar:** `streamlit run portal.py`
+
+**2. Painel Administrativo (`admin.py`)**
+- Backoffice restrito para a equipe interna da consultoria.
+- Permite cadastrar novas empresas e fazer o upload de documentos e laudos.
+- **Como rodar:** `streamlit run admin.py --server.port 8502`
