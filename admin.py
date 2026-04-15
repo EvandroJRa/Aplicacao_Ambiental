@@ -1,8 +1,8 @@
 import streamlit as st
 import requests
-import os
+import pandas as pd
 
-API_URL = os.getenv("API_URL", "http://localhost:8000")
+API_URL = "https://aplicacao-ambiental.onrender.com"
 
 st.set_page_config(page_title="Painel Admin - Ambiental", page_icon="⚙️", layout="wide")
 
@@ -26,14 +26,16 @@ if st.session_state["admin_token"] is None:
     st.title("⚙️ Painel de Administração")
     st.subheader("Acesso restrito à equipe interna")
     
-    email = st.text_input("E-mail corporativo")
-    senha = st.text_input("Senha", type="password")
-    
-    if st.button("Entrar", type="primary"):
-        if fazer_login(email, senha):
-            st.rerun()
-        else:
-            st.error("Credenciais inválidas.")
+    with st.form("form_login"):
+        email = st.text_input("E-mail corporativo")
+        senha = st.text_input("Senha", type="password")
+        submit_login = st.form_submit_button("Entrar", type="primary")
+        
+        if submit_login:
+            if fazer_login(email, senha):
+                st.rerun()
+            else:
+                st.error("Credenciais inválidas.")
 
 # ==========================================
 # TELA DO SISTEMA (LOGADO)
@@ -43,7 +45,8 @@ else:
     
     # Menu Lateral
     st.sidebar.title("Menu Administrativo")
-    menu = st.sidebar.radio("Escolha uma ação:", ["Novo Cliente", "Enviar Laudo/Documento"])
+    # 👇 AQUI ADICIONAMOS O DASHBOARD NO MENU
+    menu = st.sidebar.radio("Escolha uma ação:", ["Dashboard", "Novo Cliente", "Enviar Laudo/Documento"])
     
     st.sidebar.write("---")
     if st.sidebar.button("Sair (Logout)"):
@@ -51,9 +54,46 @@ else:
         st.rerun()
 
     # -----------------------------------------
+    # TELA 0: DASHBOARD (Visão Geral)
+    # -----------------------------------------
+    if menu == "Dashboard":
+        st.header("📊 Visão Geral do Sistema")
+        
+        # Busca os dados na API passando o crachá de segurança
+        res_clientes = requests.get(f"{API_URL}/clientes/", headers=headers)
+        res_usuarios = requests.get(f"{API_URL}/usuarios/", headers=headers)
+        
+        if res_clientes.status_code == 200 and res_usuarios.status_code == 200:
+            clientes = res_clientes.json()
+            usuarios = res_usuarios.json()
+            
+            # 1. Cartões de Métricas (KPIs)
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Empresas Cadastradas", len(clientes))
+            col2.metric("Acessos Liberados", len(usuarios))
+            col3.metric("Status do Servidor", "Online 🟢")
+            
+            st.divider()
+            
+            # 2. Tabela Visual de Acessos
+            st.subheader("📋 Controle de Acessos")
+            
+            if len(usuarios) > 0:
+                df_usuarios = pd.DataFrame(usuarios)
+                # Reorganizando e renomeando as colunas para ficar elegante
+                df_usuarios = df_usuarios[['id', 'cliente_id', 'email']]
+                df_usuarios.columns = ['ID do Acesso', 'ID da Empresa', 'E-mail de Login']
+                
+                st.dataframe(df_usuarios, use_container_width=True, hide_index=True)
+            else:
+                st.info("Nenhum usuário cadastrado ainda.")
+        else:
+            st.error("Erro ao carregar os dados. Verifique a conexão com a API.")
+
+    # -----------------------------------------
     # TELA 1: CADASTRAR NOVO CLIENTE
     # -----------------------------------------
-    if menu == "Novo Cliente":
+    elif menu == "Novo Cliente":
         st.header("🏢 Cadastrar Nova Empresa")
         
         with st.form("form_novo_cliente", clear_on_submit=True):
@@ -90,7 +130,7 @@ else:
         if resp_clientes.status_code == 200:
             lista_clientes = resp_clientes.json()
             
-            # Formata a lista para o SelectBox (mostra o nome, mas guarda o dicionário inteiro)
+            # Formata a lista para o SelectBox
             cliente_selecionado = st.selectbox(
                 "Selecione o Cliente:", 
                 options=lista_clientes, 
