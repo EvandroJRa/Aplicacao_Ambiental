@@ -1,5 +1,6 @@
-from datetime import datetime, date
+from datetime import datetime, timezone 
 from typing import List, Optional
+from sqlalchemy import Float, DateTime
 
 from sqlalchemy import String, Text, Boolean, Numeric, Date, DateTime, ForeignKey, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -109,3 +110,30 @@ class NotificacaoWhatsApp(Base):
 
     cliente: Mapped["Cliente"] = relationship(back_populates="notificacoes")
     documento: Mapped[Optional["Documento"]] = relationship(back_populates="notificacoes")
+
+# ==========================================
+# TABELA DE AUDITORIA (LOGS)
+# ==========================================
+class Auditoria(Base):
+    __tablename__ = "auditoria"
+
+    id = Column(Integer, primary key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    
+    # O que o usuário fez? (Ex: "LOGIN", "DOWNLOAD_DOCUMENTO")
+    evento = Column(String, nullable=False) 
+    
+    # Qual documento ele baixou? (Ex: "documento_id: 15")
+    detalhes = Column(String, nullable=True) 
+    
+    # Rastro Digital
+    ip = Column(String, nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    user_agent = Column(String, nullable=True) # Qual navegador/celular ele usou?
+    
+    # Carimbo de tempo exato (UTC)
+    data_hora = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Cria o atalho para acessar os dados do usuário a partir do log
+    usuario = relationship("Usuario")    

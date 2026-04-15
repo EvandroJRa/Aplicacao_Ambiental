@@ -85,3 +85,27 @@ class UsuarioResponse(UsuarioBase):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+# ==========================================
+# SCHEMAS DE AUDITORIA E LOGS
+# ==========================================
+class AuditoriaBase(BaseModel):
+    evento: str
+    detalhes: Optional[str] = None
+    ip: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    user_agent: Optional[str] = None
+
+# Para criar o log (O ID do usuário será pego direto do crachá de segurança!)
+class AuditoriaCreate(AuditoriaBase):
+    pass
+
+# Para devolver o log no Painel Admin depois
+class AuditoriaResponse(AuditoriaBase):
+    id: int
+    usuario_id: int
+    data_hora: datetime
+
+    class Config:
+        from_attributes = True    

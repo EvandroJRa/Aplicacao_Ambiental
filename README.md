@@ -85,3 +85,23 @@ Segurança: A nova rota está trancada e exige autenticação via token JWT (Dep
 
 Integridade de Dados: O schema UsuarioResponse (src/app/schemas.py) garante que a API liste os e-mails e IDs dos clientes, mas as senhas (mesmo criptografadas) jamais sejam devolvidas ou expostas na internet.
 
+
+# Portal Ambiental
+
+Sistema de gestão e entrega de laudos técnicos com auditoria eletrônica.
+
+## 🚀 Status do Projeto
+- **Frente A (Infraestrutura):** Concluída (Login, Upload, Download Seguro).
+- **Frente B (Inteligência):** Em desenvolvimento (Dashboards e Auditoria).
+
+## 🛡️ Camada de Auditoria (Nova)
+Para garantir o compliance e a segurança jurídica, o sistema registra:
+- **Timestamp:** Data/hora exata do evento.
+- **Identidade:** Usuário e empresa vinculada.
+- **Rastro Digital:** Endereço IP e coordenadas geográficas (Lat/Long).
+- **Evento:** Login, visualização ou download de arquivos.
+
+## 🛠️ Tecnologias
+- **Backend:** FastAPI + SQLAlchemy + PostgreSQL
+- **Frontend:** Streamlit
+- **Segurança:** JWT (JSON Web Tokens) + Criptografia Passlib
