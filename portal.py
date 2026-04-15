@@ -106,6 +106,9 @@ else:
             with st.container():
                 st.info(f"📄 **{doc['tipo_documento']}**")
                 st.write(f"📅 **Data de Upload:** {data_formatada}")
+                # CORREÇÃO: Monta a URL e troca os espaços por %20 para a internet entender
+                url_completa = f"{API_URL}/{doc['url_arquivo']}"
+                url_segura = url_completa.replace(" ", "%20")
                 st.write(f"🔗 [Clique aqui para baixar o arquivo]({API_URL}/{doc['url_arquivo']})")
                 st.write("---")
     else:

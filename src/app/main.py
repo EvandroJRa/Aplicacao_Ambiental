@@ -45,7 +45,7 @@ def raiz():
 async def criar_cliente(
     cliente: schemas.ClienteCreate, 
     db: AsyncSession = Depends(get_db),
-    #token: str = Depends(oauth2_scheme) # <--- O Segurança da porta!
+    token: str = Depends(oauth2_scheme) # <--- O Segurança da porta!
 ):
     novo_cliente = Cliente(**cliente.model_dump())
     db.add(novo_cliente) 
