@@ -1,9 +1,21 @@
 import os
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from datetime import datetime, timedelta, timezone # <-- Adicionamos o timezone aqui
 from typing import Optional
-from jose import jwt
+from jose import jwt, JWTError
 from passlib.context import CryptContext
 from dotenv import load_dotenv
+
+# Importando o banco e o modelo para poder consultar se o usuário existe
+from src.app.database.session import get_db
+from src.app.models.models import Usuario
+
+# Avisa o FastAPI que o crachá (Token) deve ser procurado no cabeçalho da requisição.
+# O tokenUrl diz para o Swagger onde fica a rota de login para ele mostrar o botão "Authorize"
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 # Carrega as variáveis de ambiente
 load_dotenv()
@@ -50,3 +62,39 @@ def criar_token_acesso(dados: dict, tempo_expiracao: Optional[timedelta] = None)
     # Fabrica e assina o token com a nossa chave secreta
     token_codificado = jwt.encode(dados_copia, SECRET_KEY, algorithm=ALGORITHM)
     return token_codificado
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme), 
+    db: AsyncSession = Depends(get_db)
+):
+    """Lê o crachá (token), valida a assinatura e devolve o usuário do banco"""
+    
+    credenciais_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Não foi possível validar as credenciais. Faça login novamente.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    try:
+        # 1. Abre o crachá com a nossa Chave Mestra
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        # 2. Lê o e-mail que está escrito lá dentro (salvo na chave 'sub' durante o login)
+        email: str = payload.get("sub")
+        
+        if email is None:
+            raise credenciais_exception
+            
+    except JWTError:
+        # Se o token for falso, adulterado ou estiver vencido, ele cai aqui
+        raise credenciais_exception
+        
+    # 3. Vai ao banco de dados verificar se esse e-mail ainda é de um usuário real
+    resultado = await db.execute(select(Usuario).where(Usuario.email == email))
+    usuario = resultado.scalars().first()
+    
+    if usuario is None:
+        raise credenciais_exception
+        
+    # 4. Libera a entrada e entrega a ficha completa do usuário para a rota!
+    return usuario
