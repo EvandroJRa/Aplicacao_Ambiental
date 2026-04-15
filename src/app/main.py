@@ -3,7 +3,7 @@ from datetime import date
 from typing import List, Optional
 
 # Importações do FastAPI (agora todas organizadas em uma linha só)
-from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks, Request
 from fastapi.staticfiles import StaticFiles
 
 # Importações do Banco de Dados
@@ -12,7 +12,7 @@ from sqlalchemy.future import select
 
 # Importando nossa conexão, modelos, schemas e serviços
 from src.app.database.session import get_db
-from src.app.models.models import Cliente, PontoMonitoramento, Documento
+from src.app.models.models import Cliente, PontoMonitoramento, Documento, Usuario, Auditoria
 from src.app.schemas import schemas
 from src.app.notificacoes import enviar_aviso_laudo_whatsapp
 
@@ -239,3 +239,40 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
     
     return {"access_token": token_gerado, "token_type": "bearer"}
 
+# ==========================================
+# ROTA DE AUDITORIA (O CARTÓRIO DIGITAL)
+# ==========================================
+@app.post("/auditoria/", response_model=schemas.AuditoriaResponse)
+async def registrar_auditoria(
+    auditoria: schemas.AuditoriaCreate,
+    request: Request, # <---identificador de chamadas!
+    db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user) # Apenas logados geram log
+):
+    # 1. Pega o IP real (Se estiver no Render, o IP real vem no cabeçalho x-forwarded-for)
+    ip_real = request.headers.get("x-forwarded-for")
+    if ip_real:
+        ip_real = ip_real.split(",")[0] # Pega só o primeiro IP se houver vários
+    else:
+        ip_real = request.client.host
+
+    # 2. Pega qual navegador/celular a pessoa está usando
+    navegador = request.headers.get("user-agent")
+
+    # 3. Monta o registro completo juntando o que o Streamlit mandou com o que o FastAPI descobriu
+    novo_log = Auditoria(
+        usuario_id=current_user.id,
+        evento=auditoria.evento,
+        detalhes=auditoria.detalhes,
+        latitude=auditoria.latitude,
+        longitude=auditoria.longitude,
+        ip=ip_real,
+        user_agent=navegador
+    )
+    
+    # 4. Salva no banco de dados imutável
+    db.add(novo_log)
+    await db.commit()
+    await db.refresh(novo_log)
+    
+    return novo_log
