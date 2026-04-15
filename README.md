@@ -77,3 +77,11 @@ O projeto possui duas aplicações separadas construídas com Streamlit, garanti
 - Backoffice restrito para a equipe interna da consultoria.
 - Permite cadastrar novas empresas e fazer o upload de documentos e laudos.
 - **Como rodar:** `streamlit run admin.py --server.port 8502`
+
+📝 Resumo da Atualização (Changelog)
+Nova Feature: Adicionada a rota GET /usuarios/ no motor FastAPI (src/app/main.py).
+
+Segurança: A nova rota está trancada e exige autenticação via token JWT (Depends(get_current_user)).
+
+Integridade de Dados: O schema UsuarioResponse (src/app/schemas.py) garante que a API liste os e-mails e IDs dos clientes, mas as senhas (mesmo criptografadas) jamais sejam devolvidas ou expostas na internet.
+

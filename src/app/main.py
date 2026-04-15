@@ -20,7 +20,8 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from src.app.seguranca import obter_hash_senha, verificar_senha, criar_token_acesso
 from src.app.models.models import Usuario
 from fastapi import FastAPI, Depends, HTTPException, status
-
+from sqlalchemy.future import select
+from src.app.seguranca import get_current_user
 
 # ==========================================
 # INICIALIZAÇÃO E CONFIGURAÇÕES DA API
@@ -201,6 +202,15 @@ async def criar_usuario(usuario: schemas.UsuarioCreate, db: AsyncSession = Depen
     
     return novo_usuario
 
+@app.get("/usuarios/", response_model=list[schemas.UsuarioResponse])
+async def listar_usuarios(
+    db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user) # <-- Protegido pelo cadeado!
+):
+    # Busca todos os usuários no banco de dados
+    resultado = await db.execute(select(Usuario))
+    usuarios = resultado.scalars().all()
+    return usuarios
 
 @app.post("/token", response_model=schemas.Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):

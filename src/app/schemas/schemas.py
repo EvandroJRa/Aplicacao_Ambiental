@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime
 from datetime import date
@@ -68,15 +68,16 @@ class DocumentoResponse(DocumentoBase):
 # SCHEMAS DE USUÁRIO E AUTENTICAÇÃO
 # ==========================================
 
-class UsuarioCreate(BaseModel):
-    email: str
-    senha: str
+class UsuarioBase(BaseModel):
+    email: EmailStr
     cliente_id: int
 
-class UsuarioResponse(BaseModel):
+class UsuarioCreate(UsuarioBase):
+    senha: str
+
+# 👇 Essa é a classe que o GET vai usar para devolver a lista sem mostrar as senhas!
+class UsuarioResponse(UsuarioBase):
     id: int
-    email: str
-    cliente_id: int
     
     class Config:
         from_attributes = True
