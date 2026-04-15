@@ -15,7 +15,7 @@ from src.app.models.models import Usuario
 
 # Avisa o FastAPI que o crachá (Token) deve ser procurado no cabeçalho da requisição.
 # O tokenUrl diz para o Swagger onde fica a rota de login para ele mostrar o botão "Authorize"
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # Carrega as variáveis de ambiente
 load_dotenv()
