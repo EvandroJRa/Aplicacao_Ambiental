@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+asyncpg
+python-dotenv
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt<5.0.0
+python-multipart
+streamlit
+requests
