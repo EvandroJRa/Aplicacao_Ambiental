@@ -10,3 +10,4 @@ bcrypt<5.0.0
 python-multipart
 streamlit
 requests
+email-validator
