@@ -2,6 +2,10 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy import Float, DateTime
 
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Date
+from sqlalchemy.orm import relationship
+from datetime import datetime, timezone, date
+
 from sqlalchemy import String, Text, Boolean, Numeric, Date, DateTime, ForeignKey, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -117,7 +121,7 @@ class NotificacaoWhatsApp(Base):
 class Auditoria(Base):
     __tablename__ = "auditoria"
 
-    id = Column(Integer, primary key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True) # <--- CORRIGIDO AQUI (underline)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     
     # O que o usuário fez? (Ex: "LOGIN", "DOWNLOAD_DOCUMENTO")
@@ -130,10 +134,10 @@ class Auditoria(Base):
     ip = Column(String, nullable=True)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
-    user_agent = Column(String, nullable=True) # Qual navegador/celular ele usou?
+    user_agent = Column(String, nullable=True) 
     
     # Carimbo de tempo exato (UTC)
     data_hora = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Cria o atalho para acessar os dados do usuário a partir do log
-    usuario = relationship("Usuario")    
+    usuario = relationship("Usuario") 
