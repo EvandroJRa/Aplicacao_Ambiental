@@ -106,6 +106,12 @@ class AuditoriaResponse(AuditoriaBase):
     id: int
     usuario_id: int
     data_hora: datetime
+    
+    # Adicionamos os campos novos na resposta
+    email_usuario: Optional[str] = None
+    nome_empresa: Optional[str] = None
+    cnpj_empresa: Optional[str] = None
+    telefone_empresa: Optional[str] = None
 
     class Config:
-        from_attributes = True    
+        from_attributes = True

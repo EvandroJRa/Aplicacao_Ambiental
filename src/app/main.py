@@ -245,23 +245,30 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
 @app.post("/auditoria/", response_model=schemas.AuditoriaResponse)
 async def registrar_auditoria(
     auditoria: schemas.AuditoriaCreate,
-    request: Request, # <---identificador de chamadas!
+    request: Request, 
     db: AsyncSession = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user) # Apenas logados geram log
+    current_user: Usuario = Depends(get_current_user)
 ):
-    # 1. Pega o IP real (Se estiver no Render, o IP real vem no cabeçalho x-forwarded-for)
     ip_real = request.headers.get("x-forwarded-for")
     if ip_real:
-        ip_real = ip_real.split(",")[0] # Pega só o primeiro IP se houver vários
+        ip_real = ip_real.split(",")[0]
     else:
         ip_real = request.client.host
 
-    # 2. Pega qual navegador/celular a pessoa está usando
     navegador = request.headers.get("user-agent")
 
-    # 3. Monta o registro completo juntando o que o Streamlit mandou com o que o FastAPI descobriu
+    # ---------------------------------------------------------
+    # NOVO: Busca a "Ficha Cadastral" do Cliente dono do Acesso
+    # ---------------------------------------------------------
+    cliente = await db.get(Cliente, current_user.cliente_id)
+
+    # Monta o registro com TUDO o que temos direito
     novo_log = Auditoria(
         usuario_id=current_user.id,
+        email_usuario=current_user.email,
+        nome_empresa=cliente.nome if cliente else "N/A",
+        cnpj_empresa=cliente.cnpj if cliente else "N/A",
+        telefone_empresa=cliente.whatsapp_contato if cliente else "N/A",
         evento=auditoria.evento,
         detalhes=auditoria.detalhes,
         latitude=auditoria.latitude,
@@ -270,7 +277,6 @@ async def registrar_auditoria(
         user_agent=navegador
     )
     
-    # 4. Salva no banco de dados imutável
     db.add(novo_log)
     await db.commit()
     await db.refresh(novo_log)

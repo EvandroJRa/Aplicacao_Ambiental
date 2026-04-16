@@ -119,15 +119,22 @@ class NotificacaoWhatsApp(Base):
 # TABELA DE AUDITORIA (LOGS)
 # ==========================================
 class Auditoria(Base):
-    __tablename__ = "auditoria"
+    # TRUQUE: Mudamos o nome interno para forçar o banco a criar uma tabela nova!
+    __tablename__ = "auditoria_registros" 
 
-    id = Column(Integer, primary_key=True, index=True) # <--- CORRIGIDO AQUI (underline)
+    id = Column(Integer, primary_key=True, index=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     
-    # O que o usuário fez? (Ex: "LOGIN", "DOWNLOAD_DOCUMENTO")
-    evento = Column(String, nullable=False) 
+    # ------------------------------------------
+    # NOVO: O Retrato da Identidade (Snapshot)
+    # ------------------------------------------
+    email_usuario = Column(String, nullable=True)
+    nome_empresa = Column(String, nullable=True)
+    cnpj_empresa = Column(String, nullable=True)
+    telefone_empresa = Column(String, nullable=True)
     
-    # Qual documento ele baixou? (Ex: "documento_id: 15")
+    # O que o usuário fez?
+    evento = Column(String, nullable=False) 
     detalhes = Column(String, nullable=True) 
     
     # Rastro Digital
@@ -136,8 +143,5 @@ class Auditoria(Base):
     longitude = Column(Float, nullable=True)
     user_agent = Column(String, nullable=True) 
     
-    # Carimbo de tempo exato (UTC)
     data_hora = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-    # Cria o atalho para acessar os dados do usuário a partir do log
-    usuario = relationship("Usuario") 
+    usuario = relationship("Usuario")
