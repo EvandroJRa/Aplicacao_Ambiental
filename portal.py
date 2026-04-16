@@ -1,115 +1,140 @@
 import streamlit as st
 import requests
-import os
 import base64
 import json
+from streamlit_js_eval import get_geolocation
 
 # Endereço do nosso motor FastAPI
-API_URL = os.getenv("API_URL", "http://localhost:8000")
+API_URL = "https://aplicacao-ambiental.onrender.com"
 
 st.set_page_config(page_title="Portal Ambiental", page_icon="🌿", layout="centered")
 
 # ==========================================
-# GERENCIAMENTO DE SESSÃO
+# 1. CAPTURA DE LOCALIZAÇÃO (GPS)
+# ==========================================
+st.sidebar.subheader("📍 Segurança e Auditoria")
+st.sidebar.caption("Sua localização é registrada para fins de conformidade técnica e legal.")
+
+localizacao = get_geolocation()
+latitude = None
+longitude = None
+
+if localizacao:
+    latitude = localizacao['coords']['latitude']
+    longitude = localizacao['coords']['longitude']
+    st.sidebar.success("Sinal GPS conectado.")
+else:
+    st.sidebar.warning("Aguardando permissão de localização...")
+
+# ==========================================
+# 2. A FUNÇÃO DE DOWNLOAD AUDITADA
+# ==========================================
+def registrar_e_preparar_download(doc):
+    """Registra o acesso na auditoria e busca o arquivo para o cliente"""
+    # 1. Registra no Cartório Digital (Auditoria)
+    dados_auditoria = {
+        "evento": "DOWNLOAD_DOCUMENTO",
+        "detalhes": f"ID: {doc['id']} - Tipo: {doc['tipo_documento']}",
+        "latitude": latitude,
+        "longitude": longitude
+    }
+    
+    headers = {"Authorization": f"Bearer {st.session_state['token']}"}
+    
+    try:
+        # Avisa a API que o download está acontecendo
+        requests.post(f"{API_URL}/auditoria/", json=dados_auditoria, headers=headers)
+        
+        # 2. Busca o conteúdo real do arquivo no servidor
+        url_arquivo = f"{API_URL}/{doc['url_arquivo']}".replace(" ", "%20")
+        res_arquivo = requests.get(url_arquivo)
+        
+        if res_arquivo.status_code == 200:
+            return res_arquivo.content
+    except Exception as e:
+        st.error("Erro ao processar auditoria de segurança.")
+    return None
+
+# ==========================================
+# GERENCIAMENTO DE SESSÃO E FUNÇÕES API
 # ==========================================
 if "token" not in st.session_state:
     st.session_state["token"] = None
 
-# ==========================================
-# FUNÇÕES DE COMUNICAÇÃO COM A API
-# ==========================================
 def fazer_login(email, senha):
-    url = f"{API_URL}/token"
-    dados = {"username": email, "password": senha}
-    resposta = requests.post(url, data=dados)
-    
+    resposta = requests.post(f"{API_URL}/token", data={"username": email, "password": senha})
     if resposta.status_code == 200:
         st.session_state["token"] = resposta.json().get("access_token")
         return True
     return False
 
-def fazer_logout():
-    st.session_state["token"] = None
-
 def extrair_dados_do_token(token):
-    """Abre o Token JWT para descobrir o ID do cliente sem precisar perguntar ao banco"""
     try:
-        # O JWT tem 3 partes separadas por ponto. O "recheio" é a parte 1.
         payload = token.split(".")[1]
-        # Adiciona o preenchimento necessário para o base64 do Python não reclamar
         payload += "=" * ((4 - len(payload) % 4) % 4)
         return json.loads(base64.b64decode(payload).decode("utf-8"))
-    except Exception:
-        return {"cliente_id": 1} # Fallback de segurança
-
-def buscar_documentos(token, cliente_id):
-    """Vai até a API e pede os documentos usando o crachá de segurança"""
-    url = f"{API_URL}/clientes/{cliente_id}/documentos/"
-    # AQUI ESTÁ A CHAVE DE ACESSO:
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    resposta = requests.get(url, headers=headers)
-    if resposta.status_code == 200:
-        return resposta.json()
-    return []
+    except:
+        return {}
 
 # ==========================================
-# TELA DE LOGIN (Se não tem token)
+# TELA DE LOGIN
 # ==========================================
 if st.session_state["token"] is None:
-    st.image("https://cdn-icons-png.flaticon.com/512/2942/2942185.png", width=100)
-    st.title("Portal Ambiental")
-    st.markdown("Bem-vindo! Acesse seus laudos e documentos técnicos.")
-    st.write("---")
+    st.title("🌿 Portal Ambiental")
+    st.markdown("Acesse seus laudos e documentos técnicos de forma segura.")
     
-    email = st.text_input("E-mail corporativo")
-    senha = st.text_input("Senha", type="password")
-    
-    if st.button("Entrar", type="primary"):
-        if email and senha:
+    with st.container():
+        email = st.text_input("E-mail corporativo")
+        senha = st.text_input("Senha", type="password")
+        if st.button("Entrar", type="primary"):
             if fazer_login(email, senha):
                 st.rerun()
             else:
-                st.error("E-mail ou senha incorretos.")
-        else:
-            st.warning("Preencha o e-mail e a senha.")
+                st.error("Credenciais inválidas.")
 
 # ==========================================
-# ÁREA DO CLIENTE LOGADO (Se tem token)
+# ÁREA DO CLIENTE
 # ==========================================
 else:
-    # 1. Descobrimos quem é o cliente
     dados_usuario = extrair_dados_do_token(st.session_state["token"])
     cliente_id = dados_usuario.get("cliente_id")
     email_logado = dados_usuario.get("sub")
     
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.title("🌿 Área do Cliente")
-        st.caption(f"Logado como: {email_logado}")
-    with col2:
-        if st.button("Sair (Logout)"):
-            fazer_logout()
-            st.rerun()
+    st.title("🌿 Meus Documentos")
+    st.caption(f"Logado como: {email_logado}")
+    
+    if st.button("Sair"):
+        st.session_state["token"] = None
+        st.rerun()
             
     st.write("---")
     
-    # 2. Buscamos os documentos lá no FastAPI
-    st.subheader("Meus Laudos e Documentos")
-    documentos = buscar_documentos(st.session_state["token"], cliente_id)
+    # Busca documentos
+    headers = {"Authorization": f"Bearer {st.session_state['token']}"}
+    resp = requests.get(f"{API_URL}/clientes/{cliente_id}/documentos/", headers=headers)
     
-    if documentos:
-        # Mostra cada documento em uma caixinha bonitinha
+    if resp.status_code == 200:
+        documentos = resp.json()
         for doc in documentos:
-            data_formatada = doc['data_upload'][:10] # Pega só o YYYY-MM-DD
-            
-            with st.container():
-                st.info(f"📄 **{doc['tipo_documento']}**")
-                st.write(f"📅 **Data de Upload:** {data_formatada}")
-                # CORREÇÃO: Monta a URL e troca os espaços por %20 para a internet entender
-                url_completa = f"{API_URL}/{doc['url_arquivo']}"
-                url_segura = url_completa.replace(" ", "%20")
-                st.write(f"🔗 [Clique aqui para baixar o arquivo]({API_URL}/{doc['url_arquivo']})")
-                st.write("---")
+            with st.expander(f"📄 {doc['tipo_documento']} - {doc['data_upload'][:10]}"):
+                st.write(f"ID do Documento: {doc['id']}")
+                
+                # AQUI A MÁGICA: O download só acontece através deste botão controlado
+                # Ele baixa o arquivo para a memória e entrega com o nome correto
+                nome_arquivo_limpo = doc['url_arquivo'].split("/")[-1]
+                
+                # Primeiro processamos a auditoria e pegamos os bytes
+                conteudo_arquivo = registrar_e_preparar_download(doc)
+                
+                if conteudo_arquivo:
+                    st.download_button(
+                        label="⬇️ Baixar e Registrar Acesso",
+                        data=conteudo_arquivo,
+                        file_name=nome_arquivo_limpo,
+                        mime="application/pdf",
+                        key=f"btn_{doc['id']}"
+                    )
+                else:
+                    st.error("Não foi possível carregar o arquivo para download.")
     else:
-        st.warning("Nenhum documento encontrado para a sua empresa no momento.")
+        st.info("Nenhum documento disponível.")
