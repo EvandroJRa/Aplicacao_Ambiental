@@ -23,6 +23,8 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.future import select
 from sqlalchemy import select
 from src.app.seguranca import get_current_user
+from datetime import datetime, timezone
+
 
 # ==========================================
 # INICIALIZAÇÃO E CONFIGURAÇÕES DA API
@@ -254,28 +256,13 @@ async def listar_auditoria(
     logs = result.scalars().all()
     return logs
 
-    # ---------------------------------------------------------
-    # NOVO: Busca a "Ficha Cadastral" do Cliente dono do Acesso
-    # ---------------------------------------------------------
-    cliente = await db.get(Cliente, current_user.cliente_id)
-
-    # Monta o registro com TUDO o que temos direito
-    novo_log = Auditoria(
-        usuario_id=current_user.id,
-        email_usuario=current_user.email,
-        nome_empresa=cliente.nome if cliente else "N/A",
-        cnpj_empresa=cliente.cnpj if cliente else "N/A",
-        telefone_empresa=cliente.whatsapp_contato if cliente else "N/A",
-        evento=auditoria.evento,
-        detalhes=auditoria.detalhes,
-        latitude=auditoria.latitude,
-        longitude=auditoria.longitude,
-        ip=ip_real,
-        user_agent=navegador
-    )
-    
-    db.add(novo_log)
+@app.post("/usuarios/ping")
+async def usuario_ping(
+    db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    # O simples fato de chamar esta rota já atualiza o 'ultima_atividade' 
+    # devido ao 'onupdate' que colocamos no model.
+    current_user.ultima_atividade = datetime.now(timezone.utc)
     await db.commit()
-    await db.refresh(novo_log)
-    
-    return novo_log
+    return {"status": "online"}

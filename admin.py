@@ -1,10 +1,36 @@
 import streamlit as st
 import requests
 import pandas as pd
+from datetime import datetime, timezone
 
 API_URL = "https://aplicacao-ambiental.onrender.com"
 
 st.set_page_config(page_title="Painel Admin - Ambiental", page_icon="⚙️", layout="wide")
+
+# ==========================================
+# FUNÇÕES DE APOIO
+# ==========================================
+def calcular_status_visual(ultima_atividade):
+    if not ultima_atividade:
+        return "🔴 Offline"
+    
+    try:
+        if isinstance(ultima_atividade, str):
+            ultima_atv = pd.to_datetime(ultima_atividade)
+        else:
+            ultima_atv = ultima_atividade
+
+        if ultima_atv.tzinfo is None:
+            ultima_atv = ultima_atv.replace(tzinfo=timezone.utc)
+            
+        agora = datetime.now(timezone.utc)
+        minutos = (agora - ultima_atv).total_seconds() / 60
+        
+        if minutos < 2: return "🟢 Online"
+        elif minutos < 7: return "🟠 Ausente"
+        else: return "🔴 Offline"
+    except:
+        return "⚪ Desconhecido"
 
 # ==========================================
 # GERENCIAMENTO DE SESSÃO
@@ -20,46 +46,33 @@ def fazer_login(email, senha):
     return False
 
 # ==========================================
-# TELA DE LOGIN
+# INTERFACE
 # ==========================================
 if st.session_state["admin_token"] is None:
     st.title("⚙️ Painel de Administração")
-    st.subheader("Acesso restrito à equipe interna")
-    
     with st.form("form_login"):
         email = st.text_input("E-mail corporativo")
         senha = st.text_input("Senha", type="password")
-        submit_login = st.form_submit_button("Entrar", type="primary")
-        
-        if submit_login:
-            if fazer_login(email, senha):
-                st.rerun()
-            else:
-                st.error("Credenciais inválidas.")
-
-# ==========================================
-# TELA DO SISTEMA (LOGADO)
-# ==========================================
+        if st.form_submit_button("Entrar", type="primary"):
+            if fazer_login(email, senha): st.rerun()
+            else: st.error("Credenciais inválidas.")
 else:
     headers = {"Authorization": f"Bearer {st.session_state['admin_token']}"}
     
-    # Menu Lateral
     st.sidebar.title("Menu Administrativo")
-    # 👇 AQUI ADICIONAMOS O DASHBOARD NO MENU
-    menu = st.sidebar.radio("Escolha uma ação:", ["Dashboard", "Novo Cliente", "Enviar Laudo/Documento"])
+    # Adicionamos "Auditoria" explicitamente no menu lateral
+    menu = st.sidebar.radio("Escolha uma ação:", ["Dashboard", "Auditoria", "Novo Cliente", "Enviar Laudo/Documento"])
     
-    st.sidebar.write("---")
     if st.sidebar.button("Sair (Logout)"):
         st.session_state["admin_token"] = None
         st.rerun()
 
     # -----------------------------------------
-    # TELA 0: DASHBOARD (Visão Geral)
+    # TELA 0: DASHBOARD (Visão Geral + Status Online)
     # -----------------------------------------
     if menu == "Dashboard":
         st.header("📊 Visão Geral do Sistema")
         
-        # Busca os dados na API passando o crachá de segurança
         res_clientes = requests.get(f"{API_URL}/clientes/", headers=headers)
         res_usuarios = requests.get(f"{API_URL}/usuarios/", headers=headers)
         
@@ -67,123 +80,76 @@ else:
             clientes = res_clientes.json()
             usuarios = res_usuarios.json()
             
-            # 1. Cartões de Métricas (KPIs)
             col1, col2, col3 = st.columns(3)
-            col1.metric("Empresas Cadastradas", len(clientes))
-            col2.metric("Acessos Liberados", len(usuarios))
-            col3.metric("Status do Servidor", "Online 🟢")
+            col1.metric("Empresas", len(clientes))
+            col2.metric("Acessos", len(usuarios))
+            col3.metric("Servidor", "Online 🟢")
             
             st.divider()
+            st.subheader("📋 Status dos Usuários em Tempo Real")
             
-            # 2. Tabela Visual de Acessos
-            st.subheader("📋 Controle de Acessos")
-            
-            if len(usuarios) > 0:
+            if usuarios:
                 df_usuarios = pd.DataFrame(usuarios)
-                # Reorganizando e renomeando as colunas para ficar elegante
-                df_usuarios = df_usuarios[['id', 'cliente_id', 'email']]
-                df_usuarios.columns = ['ID do Acesso', 'ID da Empresa', 'E-mail de Login']
                 
-                st.dataframe(df_usuarios, use_container_width=True, hide_index=True)
+                # APLICAÇÃO DA BOLINHA DE STATUS
+                df_usuarios['Status'] = df_usuarios['ultima_atividade'].apply(calcular_status_visual)
+                
+                # Organizando colunas para visualização
+                # Note que incluímos 'ultima_atividade' para conferência
+                exibir = df_usuarios[['Status', 'email', 'cliente_id', 'ultima_atividade']]
+                exibir.columns = ['Status', 'E-mail', 'ID Empresa', 'Última Atividade']
+                
+                st.dataframe(exibir, use_container_width=True, hide_index=True)
             else:
-                st.info("Nenhum usuário cadastrado ainda.")
-        else:
-            st.error("Erro ao carregar os dados. Verifique a conexão com a API.")
+                st.info("Nenhum usuário cadastrado.")
 
     # -----------------------------------------
-    # TELA 1: CADASTRAR NOVO CLIENTE
-    # -----------------------------------------
-    elif menu == "Novo Cliente":
-        st.header("🏢 Cadastrar Nova Empresa")
-        
-        with st.form("form_novo_cliente", clear_on_submit=True):
-            nome = st.text_input("Nome da Empresa (Razão Social)")
-            cnpj = st.text_input("CNPJ (Apenas números ou formatado)")
-            whatsapp = st.text_input("WhatsApp do Responsável (Ex: 5511999999999)")
-            email_cliente = st.text_input("E-mail de Contato")
-            
-            submit = st.form_submit_button("Salvar Cliente", type="primary")
-            
-            if submit:
-                dados_cliente = {
-                    "nome": nome,
-                    "cnpj": cnpj,
-                    "whatsapp_contato": whatsapp,
-                    "email": email_cliente
-                }
-                resp = requests.post(f"{API_URL}/clientes/", json=dados_cliente, headers=headers)
-                
-                if resp.status_code == 200:
-                    st.success(f"Cliente '{nome}' cadastrado com sucesso!")
-                else:
-                    st.error(f"Erro ao cadastrar: {resp.text}")
-
-    # -----------------------------------------
-    # TELA 2: ENVIAR LAUDO E NOTIFICAR
-    # -----------------------------------------
-    elif menu == "Enviar Laudo/Documento":
-        st.header("📤 Upload de Documentos")
-        
-        # 1. Puxa a lista de clientes para o seu time escolher
-        resp_clientes = requests.get(f"{API_URL}/clientes/", headers=headers)
-        
-        if resp_clientes.status_code == 200:
-            lista_clientes = resp_clientes.json()
-            
-            # Formata a lista para o SelectBox
-            cliente_selecionado = st.selectbox(
-                "Selecione o Cliente:", 
-                options=lista_clientes, 
-                format_func=lambda c: f"{c['id']} - {c['nome']}"
-            )
-            
-            with st.form("form_upload", clear_on_submit=True):
-                tipo_doc = st.selectbox("Tipo de Documento", ["Laudo de Análise", "Relatório Técnico", "Certificado de Destinação", "Outros"])
-                arquivo = st.file_uploader("Selecione o arquivo (PDF, JPG, Excel)", type=['pdf', 'jpg', 'png', 'xlsx'])
-                
-                submit_upload = st.form_submit_button("Enviar e Notificar Cliente", type="primary")
-                
-                if submit_upload and arquivo and cliente_selecionado:
-                    # Prepara o arquivo para viajar pela internet até o FastAPI
-                    files = {"arquivo": (arquivo.name, arquivo.getvalue(), arquivo.type)}
-                    data = {"tipo_documento": tipo_doc}
-                    
-                    url_upload = f"{API_URL}/clientes/{cliente_selecionado['id']}/documentos/"
-                    
-                    with st.spinner("Enviando arquivo e disparando WhatsApp..."):
-                        resp_upload = requests.post(url_upload, headers=headers, data=data, files=files)
-                        
-                    if resp_upload.status_code == 200:
-                        st.success("✅ Arquivo enviado e notificação programada!")
-                    else:
-                        st.error(f"Erro no envio: {resp_upload.text}")
-                elif submit_upload and not arquivo:
-                    st.warning("Por favor, anexe um arquivo antes de enviar.")
-
-# -----------------------------------------
-    # TELA 3: AUDITORIA (LOGS DE ACESSO)
+    # TELA 1: AUDITORIA (LOGS)
     # -----------------------------------------
     elif menu == "Auditoria":
         st.header("🕵️ Registro de Auditoria (Logs)")
-        
         resp_logs = requests.get(f"{API_URL}/auditoria/", headers=headers)
         
         if resp_logs.status_code == 200:
             logs = resp_logs.json()
             if logs:
                 df_logs = pd.DataFrame(logs)
+                st.dataframe(df_logs[['data_hora', 'email_usuario', 'nome_empresa', 'evento', 'detalhes', 'ip']], use_container_width=True)
                 
-                # Organiza as colunas para leitura humana
-                colunas_vistas = [
-                    'data_hora', 'email_usuario', 'nome_empresa', 
-                    'evento', 'detalhes', 'ip', 'latitude', 'longitude'
-                ]
-                st.dataframe(df_logs[colunas_vistas], use_container_width=True)
-                
-                # Mapa Visual (Se houver coordenadas)
                 st.subheader("📍 Mapa de Acessos")
-                df_mapa = df_logs.dropna(subset=['latitude', 'longitude'])
+                df_mapa = df_logs.dropna(subset=['latitude', 'longitude']).rename(columns={'latitude':'lat', 'longitude':'lon'})
                 if not df_mapa.empty:
                     st.map(df_mapa)
             else:
-                st.info("Nenhum log de auditoria registrado.")                    
+                st.info("Sem registros.")
+
+    # -----------------------------------------
+    # TELA 2: NOVO CLIENTE
+    # -----------------------------------------
+    elif menu == "Novo Cliente":
+        st.header("🏢 Cadastrar Nova Empresa")
+        with st.form("form_novo_cliente", clear_on_submit=True):
+            nome = st.text_input("Nome da Empresa")
+            cnpj = st.text_input("CNPJ")
+            whatsapp = st.text_input("WhatsApp")
+            email_c = st.text_input("E-mail")
+            if st.form_submit_button("Salvar"):
+                payload = {"nome": nome, "cnpj": cnpj, "whatsapp_contato": whatsapp, "email": email_c}
+                resp = requests.post(f"{API_URL}/clientes/", json=payload, headers=headers)
+                if resp.status_code == 200: st.success("Sucesso!")
+
+    # -----------------------------------------
+    # TELA 3: ENVIAR LAUDO
+    # -----------------------------------------
+    elif menu == "Enviar Laudo/Documento":
+        st.header("📤 Upload de Documentos")
+        resp_c = requests.get(f"{API_URL}/clientes/", headers=headers)
+        if resp_c.status_code == 200:
+            cliente_sel = st.selectbox("Selecione o Cliente:", resp_c.json(), format_func=lambda c: f"{c['id']} - {c['nome']}")
+            with st.form("form_upload"):
+                tipo = st.selectbox("Tipo", ["Laudo de Análise", "Relatório", "Outros"])
+                arquivo = st.file_uploader("Arquivo", type=['pdf', 'jpg', 'png', 'xlsx'])
+                if st.form_submit_button("Enviar") and arquivo:
+                    files = {"arquivo": (arquivo.name, arquivo.getvalue(), arquivo.type)}
+                    requests.post(f"{API_URL}/clientes/{cliente_sel['id']}/documentos/", headers=headers, data={"tipo_documento": tipo}, files=files)
+                    st.success("Enviado!")

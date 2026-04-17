@@ -9,6 +9,9 @@ from datetime import datetime, timezone, date
 from sqlalchemy import String, Text, Boolean, Numeric, Date, DateTime, ForeignKey, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from datetime import datetime, timezone
+
 # ==========================================
 # 1. CLASSE BASE (Sempre a primeira coisa!)
 # ==========================================
@@ -50,6 +53,10 @@ class Usuario(Base):
 
     # Relacionamento
     cliente: Mapped["Cliente"] = relationship(back_populates="usuarios")
+
+    #Ultima atividade para auditoria
+    ultima_atividade = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
 
 
 class PontoMonitoramento(Base):

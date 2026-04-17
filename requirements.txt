@@ -12,3 +12,5 @@ streamlit
 requests
 email-validator
 streamlit-js-eval
+streamlit-js-eval
+streamlit-autorefresh
