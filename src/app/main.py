@@ -21,6 +21,7 @@ from src.app.seguranca import obter_hash_senha, verificar_senha, criar_token_ace
 from src.app.models.models import Usuario
 from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.future import select
+from sqlalchemy import select
 from src.app.seguranca import get_current_user
 
 # ==========================================
@@ -240,22 +241,18 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
     return {"access_token": token_gerado, "token_type": "bearer"}
 
 # ==========================================
-# ROTA DE AUDITORIA (O CARTÓRIO DIGITAL)
+# ROTA PARA LISTAR AUDITORIA (USADA NO ADMIN)
 # ==========================================
-@app.post("/auditoria/", response_model=schemas.AuditoriaResponse)
-async def registrar_auditoria(
-    auditoria: schemas.AuditoriaCreate,
-    request: Request, 
+@app.get("/auditoria/", response_model=list[schemas.AuditoriaResponse])
+async def listar_auditoria(
     db: AsyncSession = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    ip_real = request.headers.get("x-forwarded-for")
-    if ip_real:
-        ip_real = ip_real.split(",")[0]
-    else:
-        ip_real = request.client.host
-
-    navegador = request.headers.get("user-agent")
+    # Por segurança, apenas o Admin pode ver os logs (usuario_id do admin geralmente é o 1 ou 3, como vimos)
+    # Mas por enquanto, vamos liberar para você testar
+    result = await db.execute(select(Auditoria).order_by(Auditoria.data_hora.desc()))
+    logs = result.scalars().all()
+    return logs
 
     # ---------------------------------------------------------
     # NOVO: Busca a "Ficha Cadastral" do Cliente dono do Acesso

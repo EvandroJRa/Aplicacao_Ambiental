@@ -159,3 +159,31 @@ else:
                         st.error(f"Erro no envio: {resp_upload.text}")
                 elif submit_upload and not arquivo:
                     st.warning("Por favor, anexe um arquivo antes de enviar.")
+
+# -----------------------------------------
+    # TELA 3: AUDITORIA (LOGS DE ACESSO)
+    # -----------------------------------------
+    elif menu == "Auditoria":
+        st.header("🕵️ Registro de Auditoria (Logs)")
+        
+        resp_logs = requests.get(f"{API_URL}/auditoria/", headers=headers)
+        
+        if resp_logs.status_code == 200:
+            logs = resp_logs.json()
+            if logs:
+                df_logs = pd.DataFrame(logs)
+                
+                # Organiza as colunas para leitura humana
+                colunas_vistas = [
+                    'data_hora', 'email_usuario', 'nome_empresa', 
+                    'evento', 'detalhes', 'ip', 'latitude', 'longitude'
+                ]
+                st.dataframe(df_logs[colunas_vistas], use_container_width=True)
+                
+                # Mapa Visual (Se houver coordenadas)
+                st.subheader("📍 Mapa de Acessos")
+                df_mapa = df_logs.dropna(subset=['latitude', 'longitude'])
+                if not df_mapa.empty:
+                    st.map(df_mapa)
+            else:
+                st.info("Nenhum log de auditoria registrado.")                    

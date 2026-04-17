@@ -15,17 +15,21 @@ st.set_page_config(page_title="Portal Ambiental", page_icon="🌿", layout="cent
 st.sidebar.subheader("📍 Segurança e Auditoria")
 st.sidebar.caption("Sua localização é registrada para fins de conformidade técnica e legal.")
 
+# Tenta capturar as coordenadas
 localizacao = get_geolocation()
+
 latitude = None
 longitude = None
 
-if localizacao:
-    latitude = localizacao['coords']['latitude']
-    longitude = localizacao['coords']['longitude']
+# Verificação de segurança para evitar o KeyError
+if localizacao and 'coords' in localizacao:
+    latitude = localizacao['coords'].get('latitude')
+    longitude = localizacao['coords'].get('longitude')
     st.sidebar.success("Sinal GPS conectado.")
+elif localizacao is None:
+    st.sidebar.info("Aguardando permissão ou sinal do GPS...")
 else:
-    st.sidebar.warning("Aguardando permissão de localização...")
-
+    st.sidebar.warning("Não foi possível capturar a localização precisa.")
 # ==========================================
 # 2. A FUNÇÃO DE DOWNLOAD AUDITADA
 # ==========================================
