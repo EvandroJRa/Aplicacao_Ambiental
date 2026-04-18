@@ -52,3 +52,8 @@ docker-compose.override.yml
 
 # -- TOKENS E CREDENCIAIS --
 token.txt
+
+# Scripts de manutenção local
+reset_banco.py
+criar_admin.py
+reset_banco_local.py

@@ -93,7 +93,7 @@ else:
             df_usuarios = pd.DataFrame(usuarios)
             
             # 🛑 PROTEÇÃO: Só tenta calcular o status se a coluna existir no DataFrame
-            if 'ultima_atividade' in df_usuarios.columns:
+            if not df_usuarios.empty and 'ultima_atividade' in df_usuarios.columns:
                 df_usuarios['Status'] = df_usuarios['ultima_atividade'].apply(calcular_status_visual)
                 
                 # Organizando colunas para visualização
