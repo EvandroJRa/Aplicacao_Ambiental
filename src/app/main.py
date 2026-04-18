@@ -108,13 +108,25 @@ async def criar_cliente_completo(
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Erro interno no servidor: {str(e)}")
 
-@app.get("/clientes/", response_model=List[schemas.ClienteResponse])
+@app.get("/clientes/")#, response_model=List[schemas.ClienteResponse])
 async def listar_clientes(
     db: AsyncSession = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user) # <--- PADRONIZADO AQUI
+    current_user: Usuario = Depends(get_current_user)
 ):
-    resultado = await db.execute(select(Cliente))
-    return resultado.scalars().all()
+    # Busca todos os clientes no banco
+    result = await db.execute(select(Cliente))
+    clientes = result.scalars().all()
+    
+    # Retornamos uma lista de dicionários simples (sem exigir a senha)
+    return [
+        {
+            "id": c.id,
+            "nome": c.nome,
+            "cnpj": c.cnpj,
+            "email": c.email,
+            "whatsapp_contato": c.whatsapp_contato
+        } for c in clientes
+    ]
 
 # ==========================================
 # ROTAS DE PONTOS DE MONITORAMENTO
