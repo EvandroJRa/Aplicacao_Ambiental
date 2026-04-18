@@ -222,24 +222,37 @@ else:
             st.write("---")
             st.subheader("2️⃣ Preencha os detalhes do envio")
             
+            # 1. Primeiro, preparamos as opções (ID - NOME)
+            # Se você já adicionou 'codigo_identificador' no banco, use ele. 
+            # Se não, vamos usar o ID por enquanto para garantir a rastreabilidade.
+            opcoes_clientes = {f"{c['id']} - {c['nome']}": c['id'] for c in clientes}
+            
+            # 2. Agora o formulário
             with st.form("form_upload_laudo", clear_on_submit=True):
-                cliente_nome = st.selectbox("Selecione o Cliente Destinatário", options=list(opcoes_clientes.keys()))
-                cliente_id = opcoes_clientes[cliente_nome]
+                # O label do selectbox agora será "1 - Empresa Teste"
+                cliente_label = st.selectbox("Selecione o Cliente Destinatário", options=list(opcoes_clientes.keys()))
+                
+                # O cliente_id EXTRAI o número de volta (ex: 1) para usar na API
+                cliente_id = opcoes_clientes[cliente_label] 
                 
                 col1, col2 = st.columns(2)
                 with col1:
                     tipo_doc = st.selectbox("Categoria",
-                                             ["Laudo de Solo", 
-                                              "Laudo de Água", 
-                                              "Relatório de Monitoramento", 
-                                              "Oficios", 
-                                              "Licenças Ambientais", 
-                                              "Certificados", 
-                                              "Declarações",
-                                              "Outros"])
-                with col2:
+                                            ["Laudo de Solo", 
+                                            "Laudo de Água", 
+                                            "Relatório de Monitoramento", 
+                                            "Oficios", 
+                                            "Licenças Ambientais", 
+                                            "Certificados", 
+                                            "Declarações",
+                                            "Outros"])
                     competencia = st.date_input("Mês de Referência")
                 
+                with col2:
+                    # Se seguiu meu conselho de tirar o uploader do form, 
+                    # ignore esta linha aqui dentro. Se manteve dentro, deixe como está.
+                    pass 
+
                 detalhes_adicionais = st.text_area("Observações Técnicas (Ex: Ponto MW-01, Revisão 02)")
                 
                 enviar = st.form_submit_button("🚀 Finalizar e Enviar para o Portal")

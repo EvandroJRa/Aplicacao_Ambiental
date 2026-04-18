@@ -17,6 +17,10 @@ class Cliente(Base):
     __tablename__ = "clientes"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    # Novo campo para o código da sua consultoria (ex: CLI-001)
+    codigo_identificador: Mapped[Optional[str]] = mapped_column(String(50), unique=True, index=True)
+    
     nome: Mapped[str] = mapped_column(String(255), nullable=False)
     cnpj: Mapped[str] = mapped_column(String(18), unique=True, nullable=False)
     whatsapp_contato: Mapped[str] = mapped_column(String(20), nullable=False)
