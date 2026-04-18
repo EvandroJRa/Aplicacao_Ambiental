@@ -92,36 +92,35 @@ else:
                 filtro = st.text_input("🔍 Pesquisar por ID de Faturamento ou Nome")
                 
                 if filtro:
-                    # Busca segura: verifica se o filtro está no código ou no nome
                     clientes = [
                         c for c in clientes 
-                        if filtro.lower() in str(c.get('codigo_identificador', '')).lower() 
+                        if filtro.lower() in str(c.get('codigo_identificador', c.get('codigo_cliente', ''))).lower() 
                         or filtro.lower() in c.get('nome', '').lower()
                     ]
                 
                 if clientes:
+                    # Normalização: Garantimos que o campo apareça como 'ID Faturamento'
+                    for c in clientes:
+                        c['id_faturamento_view'] = c.get('codigo_identificador') or c.get('codigo_cliente') or "N/D"
+
                     df_c = pd.DataFrame(clientes)
                     
-                    # Mapeamento seguro: só exibe colunas que REALMENTE existem no JSON
-                    cols_disponiveis = df_c.columns.tolist()
+                    # Mapeamento de exibição
                     mapeamento = {
                         'id': 'ID Banco',
-                        'codigo_identificador': 'ID Faturamento',
+                        'id_faturamento_view': 'ID Faturamento', # Usamos nossa coluna normalizada
                         'nome': 'Razão Social',
                         'cnpj': 'CNPJ',
                         'email': 'E-mail'
                     }
                     
-                    # Filtra apenas as colunas que o mapeamento quer E que existem no DF
-                    colunas_finais = [c for c in mapeamento.keys() if c in cols_disponiveis]
+                    # Seleciona apenas as colunas que definimos acima e que existem no DataFrame
+                    cols_para_exibir = [c for c in mapeamento.keys() if c in df_c.columns]
                     
-                    df_view = df_c[colunas_finais].rename(columns=mapeamento)
+                    df_view = df_c[cols_para_exibir].rename(columns=mapeamento)
                     st.dataframe(df_view, use_container_width=True, hide_index=True)
                 else: 
-                    st.info("Nenhum cliente encontrado para esta busca.")
-            else: 
-                st.error(f"Erro ao carregar lista: {resp.status_code}")
-
+                    st.info("Nenhum cliente encontrado.")
     # -----------------------------------------
     # TELA 2: AUDITORIA
     # -----------------------------------------
