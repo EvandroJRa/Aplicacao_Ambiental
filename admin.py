@@ -86,24 +86,43 @@ else:
             col3.metric("Servidor", "Online 🟢")
             
             st.divider()
-            st.subheader("📋 Status dos Usuários em Tempo Real")
-            
-
-        if usuarios:
-            df_usuarios = pd.DataFrame(usuarios)
-            
-            # 🛑 PROTEÇÃO: Só tenta calcular o status se a coluna existir no DataFrame
-            if not df_usuarios.empty and 'ultima_atividade' in df_usuarios.columns:
-                df_usuarios['Status'] = df_usuarios['ultima_atividade'].apply(calcular_status_visual)
-                
-                # Organizando colunas para visualização
-                exibir = df_usuarios[['Status', 'email', 'cliente_id', 'ultima_atividade']]
-                exibir.columns = ['Status', 'E-mail', 'ID Empresa', 'Última Atividade']
-                st.dataframe(exibir, use_container_width=True, hide_index=True)
-            else:
-                st.info("Aguardando dados de atividade dos usuários...")
         else:
-            st.info("Nenhum usuário cadastrado no sistema.")
+            st.error("Falha ao obter dados dos clientes ou usuários.")
+
+            st.subheader("👥 Status dos Usuários")
+
+            # 1. GARANTIA: Inicializa a variável como lista vazia
+            usuarios = [] 
+
+            try:
+                # 2. Busca os dados na API
+                resp = requests.get(f"{API_URL}/usuarios/", headers=headers)
+                if resp.status_code == 200:
+                    usuarios = resp.json()
+                else:
+                    st.error(f"Erro ao buscar usuários: {resp.status_code}")
+            except Exception as e:
+                st.error(f"Falha na conexão com a API: {e}")
+
+            # 3. O SEU BLOCO (Agora com a variável garantida)
+            if usuarios:
+                df_usuarios = pd.DataFrame(usuarios)
+                
+                # 🛑 PROTEÇÃO: Só tenta calcular o status se a coluna existir no DataFrame
+                if not df_usuarios.empty and 'ultima_atividade' in df_usuarios.columns:
+                    df_usuarios['Status'] = df_usuarios['ultima_atividade'].apply(calcular_status_visual)
+                    
+                    # Organizando colunas para visualização
+                    # Usamos .get() ou checamos as colunas para evitar novos erros de nome
+                    colunas_disponiveis = df_usuarios.columns.tolist()
+                    colunas_para_exibir = [c for c in ['Status', 'email', 'cliente_id', 'ultima_atividade'] if c in colunas_disponiveis]
+                    
+                    exibir = df_usuarios[colunas_para_exibir]
+                    st.dataframe(exibir, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Aguardando dados de atividade dos usuários...")
+            else:
+                st.info("Nenhum usuário cadastrado no sistema.")
 
     # -----------------------------------------
     # TELA 1: AUDITORIA (LOGS)
