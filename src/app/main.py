@@ -50,21 +50,30 @@ async def criar_cliente_completo(
     db: AsyncSession = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    # 1. CHECAGEM AMIGÁVEL: O e-mail já existe?
-    resultado_email = await db.execute(
-        select(Usuario).where(Usuario.email == dados.email)
+    # 1. VALIDAÇÃO DE INTEGRIDADE (Evita duplicidade de CNPJ, E-mail ou WhatsApp)
+    # Verificamos se já existe um cliente com esses dados únicos
+    query_conflito = await db.execute(
+        select(Cliente).where(
+            (Cliente.email == dados.email) | 
+            (Cliente.cnpj == dados.cnpj) | 
+            (Cliente.whatsapp_contato == dados.whatsapp_contato)
+        )
     )
-    usuario_existente = resultado_email.scalars().first()
+    conflito = query_conflito.scalars().first()
 
-    if usuario_existente:
-        # Em vez de deixar o banco explodir, nós avisamos educadamente
+    if conflito:
+        campo = ""
+        if conflito.email == dados.email: campo = "E-mail"
+        elif conflito.cnpj == dados.cnpj: campo = "CNPJ"
+        else: campo = "WhatsApp"
+        
         raise HTTPException(
             status_code=400, 
-            detail=f"O e-mail '{dados.email}' já está cadastrado para outro cliente ou usuário."
+            detail=f"Bloqueio de Integridade: O {campo} '{getattr(conflito, campo.lower().replace('-', '_') if campo != 'WhatsApp' else 'whatsapp_contato')}' já está em uso por outra empresa."
         )
 
     try:
-        # 2. CRIAR O CLIENTE
+        # 2. PROCESSO DE CADASTRO (CLIENTE + USUÁRIO)
         novo_cliente = Cliente(
             nome=dados.nome,
             cnpj=dados.cnpj,
@@ -74,7 +83,6 @@ async def criar_cliente_completo(
         db.add(novo_cliente)
         await db.flush() 
 
-        # 3. CRIAR O USUÁRIO
         novo_usuario = Usuario(
             email=dados.email,
             senha_hash=obter_hash_senha(dados.senha_provisoria),
@@ -83,34 +91,22 @@ async def criar_cliente_completo(
         )
         db.add(novo_usuario)
 
-        # 4. REGISTRAR AUDITORIA
+        # 3. REGISTRO NA AUDITORIA
         novo_log = Auditoria(
             usuario_id=current_user.id,
             email_usuario=current_user.email,
-            evento="CADASTRO_CLIENTE_SISTEMA",
-            detalhes=f"Criou cliente {dados.nome} e usuário {dados.email}",
+            evento="CADASTRO_CLIENTE_FULL",
+            detalhes=f"Novo cliente: {dados.nome} | CNPJ: {dados.cnpj}",
             data_hora=datetime.now(timezone.utc)
         )
         db.add(novo_log)
 
         await db.commit()
-        await db.refresh(novo_cliente)
-        
-        # Retornamos um dicionário simples para evitar o erro de validação de resposta
-        return {
-            "id": novo_cliente.id,
-            "nome": novo_cliente.nome,
-            "email": novo_cliente.email,
-            "status": "sucesso"
-        }
+        return {"status": "sucesso", "id": novo_cliente.id, "mensagem": "Cliente e usuário criados corretamente."}
 
     except Exception as e:
         await db.rollback()
-        # Se for um erro que não previmos, mostramos o erro original de forma resumida
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Erro inesperado ao processar cadastro: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Erro interno no servidor: {str(e)}")
 
 @app.get("/clientes/", response_model=List[schemas.ClienteResponse])
 async def listar_clientes(
