@@ -1,19 +1,10 @@
-from datetime import datetime, timezone 
-from typing import List, Optional
-from sqlalchemy import Float, DateTime
-
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Date
-from sqlalchemy.orm import relationship
 from datetime import datetime, timezone, date
-
-from sqlalchemy import String, Text, Boolean, Numeric, Date, DateTime, ForeignKey, func
+from typing import List, Optional
+from sqlalchemy import String, Text, Boolean, Numeric, Date, DateTime, ForeignKey, func, Integer, Float
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
-from datetime import datetime, timezone
-
 # ==========================================
-# 1. CLASSE BASE (Sempre a primeira coisa!)
+# 1. CLASSE BASE
 # ==========================================
 class Base(DeclarativeBase):
     pass
@@ -21,6 +12,7 @@ class Base(DeclarativeBase):
 # ==========================================
 # 2. MODELOS DO BANCO DE DADOS
 # ==========================================
+
 class Cliente(Base):
     __tablename__ = "clientes"
 
@@ -31,14 +23,12 @@ class Cliente(Base):
     email: Mapped[Optional[str]] = mapped_column(String(255))
     criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
-    # Relacionamentos 
+    # Relacionamentos
+    usuarios: Mapped[List["Usuario"]] = relationship(back_populates="cliente", cascade="all, delete-orphan")
     pontos: Mapped[List["PontoMonitoramento"]] = relationship(back_populates="cliente", cascade="all, delete-orphan")
     processos: Mapped[List["Processo"]] = relationship(back_populates="cliente", cascade="all, delete-orphan")
     documentos: Mapped[List["Documento"]] = relationship(back_populates="cliente", cascade="all, delete-orphan")
     notificacoes: Mapped[List["NotificacaoWhatsApp"]] = relationship(back_populates="cliente", cascade="all, delete-orphan")
-    
-    # CORREÇÃO: A linha de usuários adicionada no lugar certo e no padrão 2.0!
-    usuarios: Mapped[List["Usuario"]] = relationship(back_populates="cliente", cascade="all, delete-orphan")
 
 
 class Usuario(Base):
@@ -47,15 +37,45 @@ class Usuario(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     senha_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    
-    # Chave estrangeira
     cliente_id: Mapped[int] = mapped_column(ForeignKey("clientes.id"), nullable=False)
+    
+    # Campo de Status Online (Padronizado)
+    ultima_atividade: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc), 
+        onupdate=lambda: datetime.now(timezone.utc)
+    )
 
-    # Relacionamento
     cliente: Mapped["Cliente"] = relationship(back_populates="usuarios")
+    ultima_atividade: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    #Ultima atividade para auditoria
-    ultima_atividade = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+class Auditoria(Base):
+    __tablename__ = "auditoria_registros"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), nullable=False)
+    
+    # Snapshot dos dados
+    email_usuario: Mapped[Optional[str]] = mapped_column(String(255))
+    nome_empresa: Mapped[Optional[str]] = mapped_column(String(255))
+    cnpj_empresa: Mapped[Optional[str]] = mapped_column(String(18))
+    telefone_empresa: Mapped[Optional[str]] = mapped_column(String(20))
+    
+    evento: Mapped[str] = mapped_column(String(100), nullable=False) 
+    detalhes: Mapped[Optional[str]] = mapped_column(Text) 
+    
+    ip: Mapped[Optional[str]] = mapped_column(String(50))
+    latitude: Mapped[Optional[float]] = mapped_column(Float)
+    longitude: Mapped[Optional[float]] = mapped_column(Float)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(500)) 
+    
+    data_hora: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    usuario: Mapped["Usuario"] = relationship()
+
+    data_hora: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
     
 
 
@@ -122,33 +142,3 @@ class NotificacaoWhatsApp(Base):
     cliente: Mapped["Cliente"] = relationship(back_populates="notificacoes")
     documento: Mapped[Optional["Documento"]] = relationship(back_populates="notificacoes")
 
-# ==========================================
-# TABELA DE AUDITORIA (LOGS)
-# ==========================================
-class Auditoria(Base):
-    # TRUQUE: Mudamos o nome interno para forçar o banco a criar uma tabela nova!
-    __tablename__ = "auditoria_registros" 
-
-    id = Column(Integer, primary_key=True, index=True)
-    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
-    
-    # ------------------------------------------
-    # NOVO: O Retrato da Identidade (Snapshot)
-    # ------------------------------------------
-    email_usuario = Column(String, nullable=True)
-    nome_empresa = Column(String, nullable=True)
-    cnpj_empresa = Column(String, nullable=True)
-    telefone_empresa = Column(String, nullable=True)
-    
-    # O que o usuário fez?
-    evento = Column(String, nullable=False) 
-    detalhes = Column(String, nullable=True) 
-    
-    # Rastro Digital
-    ip = Column(String, nullable=True)
-    latitude = Column(Float, nullable=True)
-    longitude = Column(Float, nullable=True)
-    user_agent = Column(String, nullable=True) 
-    
-    data_hora = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    usuario = relationship("Usuario")
