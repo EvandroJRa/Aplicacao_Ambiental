@@ -47,6 +47,7 @@ class Usuario(Base):
     )
 
     cliente: Mapped["Cliente"] = relationship(back_populates="usuarios")
+    exigir_troca_senha: Mapped[bool] = mapped_column(Boolean, default=True)
     ultima_atividade: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 

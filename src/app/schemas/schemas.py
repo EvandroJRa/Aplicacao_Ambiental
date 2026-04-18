@@ -9,7 +9,8 @@ class ClienteBase(BaseModel):
     nome: str
     cnpj: str
     whatsapp_contato: str
-    email: Optional[str] = None
+    email: str
+    senha_provisoria: str # Novo campo!
 
 # Usado para CRIAR um cliente (herda a base)
 class ClienteCreate(ClienteBase):

@@ -19,7 +19,6 @@ from src.app.notificacoes import enviar_aviso_laudo_whatsapp
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from src.app.seguranca import obter_hash_senha, verificar_senha, criar_token_acesso
 from src.app.models.models import Usuario
-from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.future import select
 from sqlalchemy import select
 from src.app.seguranca import get_current_user
@@ -46,21 +45,56 @@ def raiz():
 # ROTAS DE CLIENTES
 # ==========================================
 @app.post("/clientes/", response_model=schemas.ClienteResponse)
-async def criar_cliente(
-    cliente: schemas.ClienteCreate, 
+async def criar_cliente_completo(
+    dados: schemas.ClienteCreate, 
     db: AsyncSession = Depends(get_db),
-    token: str = Depends(oauth2_scheme) # <--- O Segurança da porta!
+    current_user: Usuario = Depends(get_current_user) 
 ):
-    novo_cliente = Cliente(**cliente.model_dump())
-    db.add(novo_cliente) 
-    await db.commit()
-    await db.refresh(novo_cliente) 
-    return novo_cliente
+    try:
+        # A. CRIAR O CLIENTE
+        novo_cliente = Cliente(
+            nome=dados.nome,
+            cnpj=dados.cnpj,
+            whatsapp_contato=dados.whatsapp_contato,
+            email=dados.email
+        )
+        db.add(novo_cliente)
+        await db.flush() 
+
+        # B. CRIAR O USUÁRIO HERDADO
+        novo_usuario = Usuario(
+            email=dados.email,
+            senha_hash=obter_hash_senha(dados.senha_provisoria),
+            cliente_id=novo_cliente.id,
+            exigir_troca_senha=True 
+        )
+        db.add(novo_usuario)
+
+        # C. REGISTRAR NA AUDITORIA
+        novo_log = Auditoria(
+            usuario_id=current_user.id,
+            email_usuario=current_user.email,
+            evento="CADASTRO_CLIENTE_SISTEMA",
+            detalhes=f"Admin criou Empresa {dados.nome} e gerou acesso para {dados.email}",
+            data_hora=datetime.now(timezone.utc)
+        )
+        db.add(novo_log)
+
+        await db.commit()
+        await db.refresh(novo_cliente)
+        return novo_cliente
+
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail=f"Erro ao processar cadastro: {str(e)}"
+        )
 
 @app.get("/clientes/", response_model=List[schemas.ClienteResponse])
 async def listar_clientes(
     db: AsyncSession = Depends(get_db),
-    token: str = Depends(oauth2_scheme) # <--- CADEADO AQUI
+    current_user: Usuario = Depends(get_current_user) # <--- PADRONIZADO AQUI
 ):
     resultado = await db.execute(select(Cliente))
     return resultado.scalars().all()

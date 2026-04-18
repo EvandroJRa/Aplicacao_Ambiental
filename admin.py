@@ -88,20 +88,22 @@ else:
             st.divider()
             st.subheader("📋 Status dos Usuários em Tempo Real")
             
-            if usuarios:
-                df_usuarios = pd.DataFrame(usuarios)
-                
-                # APLICAÇÃO DA BOLINHA DE STATUS
+
+        if usuarios:
+            df_usuarios = pd.DataFrame(usuarios)
+            
+            # 🛑 PROTEÇÃO: Só tenta calcular o status se a coluna existir no DataFrame
+            if 'ultima_atividade' in df_usuarios.columns:
                 df_usuarios['Status'] = df_usuarios['ultima_atividade'].apply(calcular_status_visual)
                 
                 # Organizando colunas para visualização
-                # Note que incluímos 'ultima_atividade' para conferência
                 exibir = df_usuarios[['Status', 'email', 'cliente_id', 'ultima_atividade']]
                 exibir.columns = ['Status', 'E-mail', 'ID Empresa', 'Última Atividade']
-                
                 st.dataframe(exibir, use_container_width=True, hide_index=True)
             else:
-                st.info("Nenhum usuário cadastrado.")
+                st.info("Aguardando dados de atividade dos usuários...")
+        else:
+            st.info("Nenhum usuário cadastrado no sistema.")
 
     # -----------------------------------------
     # TELA 1: AUDITORIA (LOGS)
@@ -124,19 +126,53 @@ else:
                 st.info("Sem registros.")
 
     # -----------------------------------------
-    # TELA 2: NOVO CLIENTE
+    # TELA 2: NOVO CLIENTE (COM CRIAÇÃO DE ACESSO)
     # -----------------------------------------
     elif menu == "Novo Cliente":
-        st.header("🏢 Cadastrar Nova Empresa")
+        st.header("🏢 Cadastrar Nova Empresa e Primeiro Acesso")
+        st.info("Ao salvar, o sistema criará a empresa e o usuário vinculado automaticamente.")
+        
         with st.form("form_novo_cliente", clear_on_submit=True):
-            nome = st.text_input("Nome da Empresa")
-            cnpj = st.text_input("CNPJ")
-            whatsapp = st.text_input("WhatsApp")
-            email_c = st.text_input("E-mail")
-            if st.form_submit_button("Salvar"):
-                payload = {"nome": nome, "cnpj": cnpj, "whatsapp_contato": whatsapp, "email": email_c}
-                resp = requests.post(f"{API_URL}/clientes/", json=payload, headers=headers)
-                if resp.status_code == 200: st.success("Sucesso!")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader("Dados da Empresa")
+                nome = st.text_input("Razão Social / Nome Fantasia")
+                cnpj = st.text_input("CNPJ (Apenas números)")
+                whatsapp = st.text_input("WhatsApp do Responsável", help="Ex: 5511999999999")
+            
+            with col2:
+                st.subheader("Credenciais de Acesso")
+                email_c = st.text_input("E-mail de Login", help="Este será o usuário do portal")
+                senha_prov = st.text_input("Senha Provisória", value="Alterar@123", type="password")
+                st.caption("⚠️ O cliente será obrigado a trocar esta senha no primeiro login.")
+            
+            st.write("---")
+            submit = st.form_submit_button("Finalizar Cadastro e Gerar Acesso", type="primary")
+            
+            if submit:
+                # O payload agora leva a senha provisória para a API orquestrar tudo
+                payload = {
+                    "nome": nome,
+                    "cnpj": cnpj,
+                    "whatsapp_contato": whatsapp,
+                    "email": email_c,
+                    "senha_provisoria": senha_prov  # Campo novo para a API
+                }
+                
+                with st.spinner("Sincronizando com o banco de dados..."):
+                    resp = requests.post(f"{API_URL}/clientes/", json=payload, headers=headers)
+                
+                if resp.status_code == 200:
+                    st.success(f"✅ Cliente '{nome}' e usuário '{email_c}' cadastrados com sucesso!")
+                    st.balloons()
+                else:
+                    # Tenta mostrar o erro detalhado da API se houver (ex: CNPJ duplicado)
+                    try:
+                        erro_detalhe = resp.json().get('detail', resp.text)
+                    except:
+                        erro_detalhe = resp.text
+                    st.error(f"Erro ao processar cadastro: {erro_detalhe}")
 
     # -----------------------------------------
     # TELA 3: ENVIAR LAUDO
