@@ -3,7 +3,6 @@ from typing import Optional
 from datetime import datetime
 from datetime import date
 
-
 # A base de dados que o usuário precisa preencher
 class ClienteBase(BaseModel):
     nome: str
