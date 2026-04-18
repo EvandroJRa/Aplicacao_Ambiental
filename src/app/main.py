@@ -44,14 +44,27 @@ def raiz():
 # ==========================================
 # ROTAS DE CLIENTES
 # ==========================================
-@app.post("/clientes/") #, response_model=schemas.ClienteResponse)
+@app.post("/clientes/")
 async def criar_cliente_completo(
     dados: schemas.ClienteCreate, 
     db: AsyncSession = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user) 
+    current_user: Usuario = Depends(get_current_user)
 ):
+    # 1. CHECAGEM AMIGÁVEL: O e-mail já existe?
+    resultado_email = await db.execute(
+        select(Usuario).where(Usuario.email == dados.email)
+    )
+    usuario_existente = resultado_email.scalars().first()
+
+    if usuario_existente:
+        # Em vez de deixar o banco explodir, nós avisamos educadamente
+        raise HTTPException(
+            status_code=400, 
+            detail=f"O e-mail '{dados.email}' já está cadastrado para outro cliente ou usuário."
+        )
+
     try:
-        # A. CRIAR O CLIENTE
+        # 2. CRIAR O CLIENTE
         novo_cliente = Cliente(
             nome=dados.nome,
             cnpj=dados.cnpj,
@@ -61,7 +74,7 @@ async def criar_cliente_completo(
         db.add(novo_cliente)
         await db.flush() 
 
-        # B. CRIAR O USUÁRIO HERDADO
+        # 3. CRIAR O USUÁRIO
         novo_usuario = Usuario(
             email=dados.email,
             senha_hash=obter_hash_senha(dados.senha_provisoria),
@@ -70,25 +83,33 @@ async def criar_cliente_completo(
         )
         db.add(novo_usuario)
 
-        # C. REGISTRAR NA AUDITORIA
+        # 4. REGISTRAR AUDITORIA
         novo_log = Auditoria(
             usuario_id=current_user.id,
             email_usuario=current_user.email,
             evento="CADASTRO_CLIENTE_SISTEMA",
-            detalhes=f"Admin criou Empresa {dados.nome} e gerou acesso para {dados.email}",
+            detalhes=f"Criou cliente {dados.nome} e usuário {dados.email}",
             data_hora=datetime.now(timezone.utc)
         )
         db.add(novo_log)
 
         await db.commit()
         await db.refresh(novo_cliente)
-        return novo_cliente
+        
+        # Retornamos um dicionário simples para evitar o erro de validação de resposta
+        return {
+            "id": novo_cliente.id,
+            "nome": novo_cliente.nome,
+            "email": novo_cliente.email,
+            "status": "sucesso"
+        }
 
     except Exception as e:
         await db.rollback()
+        # Se for um erro que não previmos, mostramos o erro original de forma resumida
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail=f"Erro ao processar cadastro: {str(e)}"
+            status_code=400, 
+            detail=f"Erro inesperado ao processar cadastro: {str(e)}"
         )
 
 @app.get("/clientes/", response_model=List[schemas.ClienteResponse])
