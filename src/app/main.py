@@ -125,7 +125,8 @@ async def listar_clientes(
             "nome": c.nome,
             "cnpj": c.cnpj,
             "email": c.email,
-            "whatsapp_contato": c.whatsapp_contato
+            "whatsapp_contato": c.whatsapp_contato,
+            "codigo_identificador": c.codigo_identificador
         } for c in clientes
     ]
 

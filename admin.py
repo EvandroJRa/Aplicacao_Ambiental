@@ -89,6 +89,7 @@ else:
             
             if resp.status_code == 200:
                 clientes = resp.json()
+                st.write(clientes[0]) # <--- DESCOMENTE ESTA LINHA PARA TESTAR
                 filtro = st.text_input("🔍 Pesquisar por ID de Faturamento ou Nome")
                 
                 if filtro:
