@@ -44,7 +44,7 @@ def raiz():
 # ==========================================
 # ROTAS DE CLIENTES
 # ==========================================
-@app.post("/clientes/", response_model=schemas.ClienteResponse)
+@app.post("/clientes/") #, response_model=schemas.ClienteResponse)
 async def criar_cliente_completo(
     dados: schemas.ClienteCreate, 
     db: AsyncSession = Depends(get_db),

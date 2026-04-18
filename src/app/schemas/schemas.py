@@ -12,6 +12,16 @@ class ClienteBase(BaseModel):
     email: str
     senha_provisoria: str # Novo campo!
 
+class ClienteResponse(BaseModel):
+    id: int
+    nome: str
+    cnpj: str
+    whatsapp_contato: str
+    email: str   
+    
+class Config:
+        from_attributes = True     
+
 # Usado para CRIAR um cliente (herda a base)
 class ClienteCreate(ClienteBase):
     pass
