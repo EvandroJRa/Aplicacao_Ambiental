@@ -194,17 +194,64 @@ else:
                     st.error(f"Erro ao processar cadastro: {erro_detalhe}")
 
     # -----------------------------------------
-    # TELA 3: ENVIAR LAUDO
+    # TELA 4: ENVIAR LAUDO / DOCUMENTO
     # -----------------------------------------
     elif menu == "Enviar Laudo/Documento":
         st.header("📤 Upload de Documentos")
-        resp_c = requests.get(f"{API_URL}/clientes/", headers=headers)
-        if resp_c.status_code == 200:
-            cliente_sel = st.selectbox("Selecione o Cliente:", resp_c.json(), format_func=lambda c: f"{c['id']} - {c['nome']}")
-            with st.form("form_upload"):
-                tipo = st.selectbox("Tipo", ["Laudo de Análise", "Relatório", "Outros"])
-                arquivo = st.file_uploader("Arquivo", type=['pdf', 'jpg', 'png', 'xlsx'])
-                if st.form_submit_button("Enviar") and arquivo:
-                    files = {"arquivo": (arquivo.name, arquivo.getvalue(), arquivo.type)}
-                    requests.post(f"{API_URL}/clientes/{cliente_sel['id']}/documentos/", headers=headers, data={"tipo_documento": tipo}, files=files)
-                    st.success("Enviado!")
+        
+        # 1. BUSCAR LISTA DE CLIENTES PARA O SELECTBOX
+        clientes = []
+        try:
+            resp_c = requests.get(f"{API_URL}/clientes/", headers=headers)
+            if resp_c.status_code == 200:
+                clientes = resp_c.json()
+        except Exception as e:
+            st.error(f"Erro ao carregar clientes: {e}")
+
+        if not clientes:
+            st.warning("Nenhum cliente cadastrado. Cadastre uma empresa antes de enviar laudos.")
+        else:
+            # Criamos um dicionário para facilitar a seleção: "Nome da Empresa" -> ID
+            opcoes_clientes = {c['nome']: c['id'] for c in clientes}
+            
+            with st.form("form_upload", clear_on_submit=True):
+                # Seleção do Cliente
+                cliente_selecionado = st.selectbox("Selecione o Cliente", options=list(opcoes_clientes.keys()))
+                cliente_id = opcoes_clientes[cliente_selecionado]
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    tipo_doc = st.selectbox("Tipo de Documento", ["Laudo de Monitoramento", "Relatório Técnico", "Certificado de Destinação", "Outros"])
+                    competencia = st.date_input("Mês de Competência", value=datetime.now())
+                
+                with col2:
+                    arquivo = st.file_uploader("Escolha o arquivo (PDF, Imagem, Excel)", type=['pdf', 'jpg', 'png', 'xlsx', 'docx'])
+                    ponto_monitoramento = st.number_input("ID do Ponto (Opcional)", min_value=0, step=1, value=0)
+
+                submit = st.form_submit_button("Enviar Documento para o Portal")
+
+                if submit:
+                    if arquivo:
+                        # Preparando os dados para o envio (Multipart Form Data)
+                        files = {"arquivo": (arquivo.name, arquivo.getvalue(), arquivo.type)}
+                        data = {
+                            "tipo_documento": tipo_doc,
+                            "competencia": competencia.strftime("%Y-%m-%d"),
+                            "ponto_id": str(ponto_monitoramento) if ponto_monitoramento > 0 else "0"
+                        }
+                        
+                        with st.spinner("Enviando e notificando cliente via WhatsApp..."):
+                            resp = requests.post(
+                                f"{API_URL}/clientes/{cliente_id}/documentos/",
+                                data=data,
+                                files=files,
+                                headers=headers # O token de admin vai aqui
+                            )
+                        
+                        if resp.status_code == 200:
+                            st.success(f"✅ Sucesso! O documento foi enviado para {cliente_selecionado}.")
+                            st.balloons()
+                        else:
+                            st.error(f"Erro no upload: {resp.text}")
+                    else:
+                        st.warning("Por favor, selecione um arquivo antes de enviar.")
