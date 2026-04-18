@@ -84,20 +84,43 @@ else:
     # TELA 1: LISTAR CLIENTES (COM BUSCA POR ID)
     # -----------------------------------------
     elif menu == "Listar Clientes":
-        st.header("📋 Empresas Cadastradas")
-        resp = requests.get(f"{API_URL}/clientes/", headers=headers)
-        if resp.status_code == 200:
-            clientes = resp.json()
-            filtro = st.text_input("🔍 Pesquisar por ID de Faturamento ou Nome")
-            if filtro:
-                clientes = [c for c in clientes if filtro.lower() in str(c.get('codigo_identificador', '')).lower() or filtro.lower() in c['nome'].lower()]
+            st.header("📋 Empresas Cadastradas")
+            resp = requests.get(f"{API_URL}/clientes/", headers=headers)
             
-            if clientes:
-                df_c = pd.DataFrame(clientes)
-                # Renomeia para exibição amigável
-                cols = {'id': 'ID Banco', 'codigo_identificador': 'ID Faturamento', 'nome': 'Razão Social', 'cnpj': 'CNPJ', 'email': 'E-mail'}
-                st.dataframe(df_c[list(cols.keys())].rename(columns=cols), use_container_width=True, hide_index=True)
-            else: st.info("Nenhum cliente encontrado.")
+            if resp.status_code == 200:
+                clientes = resp.json()
+                filtro = st.text_input("🔍 Pesquisar por ID de Faturamento ou Nome")
+                
+                if filtro:
+                    # Busca segura: verifica se o filtro está no código ou no nome
+                    clientes = [
+                        c for c in clientes 
+                        if filtro.lower() in str(c.get('codigo_identificador', '')).lower() 
+                        or filtro.lower() in c.get('nome', '').lower()
+                    ]
+                
+                if clientes:
+                    df_c = pd.DataFrame(clientes)
+                    
+                    # Mapeamento seguro: só exibe colunas que REALMENTE existem no JSON
+                    cols_disponiveis = df_c.columns.tolist()
+                    mapeamento = {
+                        'id': 'ID Banco',
+                        'codigo_identificador': 'ID Faturamento',
+                        'nome': 'Razão Social',
+                        'cnpj': 'CNPJ',
+                        'email': 'E-mail'
+                    }
+                    
+                    # Filtra apenas as colunas que o mapeamento quer E que existem no DF
+                    colunas_finais = [c for c in mapeamento.keys() if c in cols_disponiveis]
+                    
+                    df_view = df_c[colunas_finais].rename(columns=mapeamento)
+                    st.dataframe(df_view, use_container_width=True, hide_index=True)
+                else: 
+                    st.info("Nenhum cliente encontrado para esta busca.")
+            else: 
+                st.error(f"Erro ao carregar lista: {resp.status_code}")
 
     # -----------------------------------------
     # TELA 2: AUDITORIA
