@@ -79,7 +79,7 @@ async def criar_cliente_completo(
             cnpj=dados.cnpj,
             whatsapp_contato=dados.whatsapp_contato,
             email=dados.email,
-            codigo_identificador=dados.id_faturamento
+            codigo_identificador=dados.codigo_cliente
         )
         db.add(novo_cliente)
         await db.flush() 

@@ -11,7 +11,7 @@ class ClienteBase(BaseModel):
     whatsapp_contato: str
     email: str
     senha_provisoria: str # Novo campo!
-    id_faturamento: Optional[str] = None
+    codigo_cliente: Optional[str] = None 
 
 class ClienteResponse(BaseModel):
     id: int
