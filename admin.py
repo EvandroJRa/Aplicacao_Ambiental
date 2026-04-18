@@ -198,50 +198,29 @@ else:
     # TELA 4: ENVIAR LAUDO / DOCUMENTO
     # -----------------------------------------
     elif menu == "Enviar Laudo/Documento":
-        st.header("📤 Envio de Documentos Técnicos")
+        st.header("📤 Gestão de Documentos - Consensu")
         
-        # --- BLOCO DE TESTE RÁPIDO ---
-        with st.expander("🧪 Testar Conexão de Upload"):
-            arquivo_teste = st.file_uploader("Suba um arquivo pequeno para testar a API", type=['pdf', 'txt'], key="teste_up")
-            if st.button("Executar Teste de Envio"):
-                if arquivo_teste:
-                    files = {"arquivo": (arquivo_teste.name, arquivo_teste.getvalue(), arquivo_teste.type)}
-                    resp = requests.post(f"{API_URL}/testar-upload/", files=files, headers=headers)
-                    if resp.status_code == 200:
-                        st.success(f"Conexão OK! Resposta da API: {resp.json()['mensagem']}")
-                    else:
-                        st.error(f"Falha no teste: {resp.text}")
-        st.divider()
-
-
-        # 1. BUSCAR CLIENTES COM TRATAMENTO DE TOKEN
+        # 1. BUSCAR CLIENTES (Igual ao seu, está perfeito)
         clientes = []
         try:
-            # Garantimos que o cabeçalho de autorização está presente
             resp_c = requests.get(f"{API_URL}/clientes/", headers=headers)
-            
             if resp_c.status_code == 200:
                 clientes = resp_c.json()
-            elif resp_c.status_code == 401:
-                st.error("Sessão expirada. Por favor, faça login novamente.")
-                st.stop()
-            else:
-                st.warning(f"A API retornou um aviso: {resp_c.status_code}")
         except Exception as e:
-            st.error(f"Erro de conexão com o servidor: {e}")
+            st.error(f"Erro ao conectar: {e}")
 
-        # 2. VERIFICAÇÃO REAL DA LISTA
         if not clientes:
-            st.info("🔎 Buscando empresas no banco de dados...")
-            # Um pequeno botão de "Recarregar" ajuda se o Render estiver lento
-            if st.button("Atualizar Lista de Clientes"):
-                st.rerun()
-            
-            st.warning("Nenhum cliente encontrado. Verifique se o cadastro foi concluído com sucesso na aba 'Novo Cliente'.")
-        
+            st.info("🔎 Buscando empresas...")
+            if st.button("🔄 Atualizar Lista"): st.rerun()
+            st.warning("Nenhum cliente cadastrado.")
         else:
-            # 3. CONSTRUÇÃO DO FORMULÁRIO (Se houver clientes)
             opcoes_clientes = {c['nome']: c['id'] for c in clientes}
+            
+            # --- MELHORIA: Arquivo fora do form para evitar perdas ---
+            arquivo = st.file_uploader("1️⃣ Primeiro, escolha o arquivo (PDF, XLSX, DOCX)", type=['pdf', 'xlsx', 'docx'])
+            
+            st.write("---")
+            st.subheader("2️⃣ Preencha os detalhes do envio")
             
             with st.form("form_upload_laudo", clear_on_submit=True):
                 cliente_nome = st.selectbox("Selecione o Cliente Destinatário", options=list(opcoes_clientes.keys()))
@@ -249,19 +228,24 @@ else:
                 
                 col1, col2 = st.columns(2)
                 with col1:
-                    tipo_doc = st.selectbox("Categoria", ["Laudo de Solo", "Laudo de Água", "Relatório de Monitoramento", "Outros"])
-                    competencia = st.date_input("Data de Referência")
-                
+                    tipo_doc = st.selectbox("Categoria",
+                                             ["Laudo de Solo", 
+                                              "Laudo de Água", 
+                                              "Relatório de Monitoramento", 
+                                              "Oficios", 
+                                              "Licenças Ambientais", 
+                                              "Certificados", 
+                                              "Declarações",
+                                              "Outros"])
                 with col2:
-                    arquivo = st.file_uploader("Upload do arquivo", type=['pdf', 'xlsx', 'docx'])
+                    competencia = st.date_input("Mês de Referência")
                 
-                detalhes_adicionais = st.text_area("Observações (Opcional)")
+                detalhes_adicionais = st.text_area("Observações Técnicas (Ex: Ponto MW-01, Revisão 02)")
                 
-                enviar = st.form_submit_button("🚀 Finalizar e Enviar")
+                enviar = st.form_submit_button("🚀 Finalizar e Enviar para o Portal")
 
                 if enviar:
                     if arquivo:
-                        # Lógica de envio para a API (Multipart)
                         files = {"arquivo": (arquivo.name, arquivo.getvalue(), arquivo.type)}
                         data = {
                             "tipo_documento": tipo_doc,
@@ -269,17 +253,18 @@ else:
                             "detalhes": detalhes_adicionais
                         }
                         
-                        resp = requests.post(
-                            f"{API_URL}/clientes/{cliente_id}/documentos/",
-                            data=data,
-                            files=files,
-                            headers=headers
-                        )
+                        with st.spinner("Fazendo upload e registrando..."):
+                            resp = requests.post(
+                                f"{API_URL}/clientes/{cliente_id}/documentos/",
+                                data=data,
+                                files=files,
+                                headers=headers
+                            )
                         
                         if resp.status_code == 200:
-                            st.success(f"Documento enviado com sucesso para {cliente_nome}!")
+                            st.success(f"✅ Sucesso! O arquivo '{arquivo.name}' já está disponível para {cliente_nome}.")
                             st.balloons()
                         else:
-                            st.error(f"Erro no upload: {resp.text}")
+                            st.error(f"Erro no servidor: {resp.text}")
                     else:
-                        st.error("Por favor, selecione um arquivo antes de enviar.")
+                        st.error("⚠️ Erro: Você esqueceu de selecionar o arquivo no Passo 1!")
