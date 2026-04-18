@@ -329,3 +329,26 @@ async def usuario_ping(
     current_user.ultima_atividade = datetime.now(timezone.utc)
     await db.commit()
     return {"status": "online"}
+
+
+######
+# TEstes
+
+@app.post("/testar-upload/")
+async def testar_upload(
+    arquivo: UploadFile = File(...),
+    current_user: Usuario = Depends(get_current_user)
+):
+    try:
+        conteudo = await arquivo.read()
+        tamanho = len(conteudo)
+        
+        # Aqui você pode simular o salvamento ou apenas retornar o sucesso
+        return {
+            "status": "sucesso",
+            "arquivo_recebido": arquivo.filename,
+            "tamanho_bytes": tamanho,
+            "mensagem": "A API recebeu o arquivo corretamente no Render!"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro no teste de upload: {str(e)}")

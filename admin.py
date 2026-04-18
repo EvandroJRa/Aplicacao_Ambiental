@@ -199,6 +199,20 @@ else:
     elif menu == "Enviar Laudo/Documento":
         st.header("📤 Envio de Documentos Técnicos")
         
+        # --- BLOCO DE TESTE RÁPIDO ---
+        with st.expander("🧪 Testar Conexão de Upload"):
+            arquivo_teste = st.file_uploader("Suba um arquivo pequeno para testar a API", type=['pdf', 'txt'], key="teste_up")
+            if st.button("Executar Teste de Envio"):
+                if arquivo_teste:
+                    files = {"arquivo": (arquivo_teste.name, arquivo_teste.getvalue(), arquivo_teste.type)}
+                    resp = requests.post(f"{API_URL}/testar-upload/", files=files, headers=headers)
+                    if resp.status_code == 200:
+                        st.success(f"Conexão OK! Resposta da API: {resp.json()['mensagem']}")
+                    else:
+                        st.error(f"Falha no teste: {resp.text}")
+        st.divider()
+
+
         # 1. BUSCAR CLIENTES COM TRATAMENTO DE TOKEN
         clientes = []
         try:
