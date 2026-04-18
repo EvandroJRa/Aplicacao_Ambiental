@@ -197,61 +197,74 @@ else:
     # TELA 4: ENVIAR LAUDO / DOCUMENTO
     # -----------------------------------------
     elif menu == "Enviar Laudo/Documento":
-        st.header("📤 Upload de Documentos")
+        st.header("📤 Envio de Documentos Técnicos")
         
-        # 1. BUSCAR LISTA DE CLIENTES PARA O SELECTBOX
+        # 1. BUSCAR CLIENTES COM TRATAMENTO DE TOKEN
         clientes = []
         try:
+            # Garantimos que o cabeçalho de autorização está presente
             resp_c = requests.get(f"{API_URL}/clientes/", headers=headers)
+            
             if resp_c.status_code == 200:
                 clientes = resp_c.json()
+            elif resp_c.status_code == 401:
+                st.error("Sessão expirada. Por favor, faça login novamente.")
+                st.stop()
+            else:
+                st.warning(f"A API retornou um aviso: {resp_c.status_code}")
         except Exception as e:
-            st.error(f"Erro ao carregar clientes: {e}")
+            st.error(f"Erro de conexão com o servidor: {e}")
 
+        # 2. VERIFICAÇÃO REAL DA LISTA
         if not clientes:
-            st.warning("Nenhum cliente cadastrado. Cadastre uma empresa antes de enviar laudos.")
+            st.info("🔎 Buscando empresas no banco de dados...")
+            # Um pequeno botão de "Recarregar" ajuda se o Render estiver lento
+            if st.button("Atualizar Lista de Clientes"):
+                st.rerun()
+            
+            st.warning("Nenhum cliente encontrado. Verifique se o cadastro foi concluído com sucesso na aba 'Novo Cliente'.")
+        
         else:
-            # Criamos um dicionário para facilitar a seleção: "Nome da Empresa" -> ID
+            # 3. CONSTRUÇÃO DO FORMULÁRIO (Se houver clientes)
             opcoes_clientes = {c['nome']: c['id'] for c in clientes}
             
-            with st.form("form_upload", clear_on_submit=True):
-                # Seleção do Cliente
-                cliente_selecionado = st.selectbox("Selecione o Cliente", options=list(opcoes_clientes.keys()))
-                cliente_id = opcoes_clientes[cliente_selecionado]
+            with st.form("form_upload_laudo", clear_on_submit=True):
+                cliente_nome = st.selectbox("Selecione o Cliente Destinatário", options=list(opcoes_clientes.keys()))
+                cliente_id = opcoes_clientes[cliente_nome]
                 
                 col1, col2 = st.columns(2)
                 with col1:
-                    tipo_doc = st.selectbox("Tipo de Documento", ["Laudo de Monitoramento", "Relatório Técnico", "Certificado de Destinação", "Outros"])
-                    competencia = st.date_input("Mês de Competência", value=datetime.now())
+                    tipo_doc = st.selectbox("Categoria", ["Laudo de Solo", "Laudo de Água", "Relatório de Monitoramento", "Outros"])
+                    competencia = st.date_input("Data de Referência")
                 
                 with col2:
-                    arquivo = st.file_uploader("Escolha o arquivo (PDF, Imagem, Excel)", type=['pdf', 'jpg', 'png', 'xlsx', 'docx'])
-                    ponto_monitoramento = st.number_input("ID do Ponto (Opcional)", min_value=0, step=1, value=0)
+                    arquivo = st.file_uploader("Upload do arquivo", type=['pdf', 'xlsx', 'docx'])
+                
+                detalhes_adicionais = st.text_area("Observações (Opcional)")
+                
+                enviar = st.form_submit_button("🚀 Finalizar e Enviar")
 
-                submit = st.form_submit_button("Enviar Documento para o Portal")
-
-                if submit:
+                if enviar:
                     if arquivo:
-                        # Preparando os dados para o envio (Multipart Form Data)
+                        # Lógica de envio para a API (Multipart)
                         files = {"arquivo": (arquivo.name, arquivo.getvalue(), arquivo.type)}
                         data = {
                             "tipo_documento": tipo_doc,
                             "competencia": competencia.strftime("%Y-%m-%d"),
-                            "ponto_id": str(ponto_monitoramento) if ponto_monitoramento > 0 else "0"
+                            "detalhes": detalhes_adicionais
                         }
                         
-                        with st.spinner("Enviando e notificando cliente via WhatsApp..."):
-                            resp = requests.post(
-                                f"{API_URL}/clientes/{cliente_id}/documentos/",
-                                data=data,
-                                files=files,
-                                headers=headers # O token de admin vai aqui
-                            )
+                        resp = requests.post(
+                            f"{API_URL}/clientes/{cliente_id}/documentos/",
+                            data=data,
+                            files=files,
+                            headers=headers
+                        )
                         
                         if resp.status_code == 200:
-                            st.success(f"✅ Sucesso! O documento foi enviado para {cliente_selecionado}.")
+                            st.success(f"Documento enviado com sucesso para {cliente_nome}!")
                             st.balloons()
                         else:
                             st.error(f"Erro no upload: {resp.text}")
                     else:
-                        st.warning("Por favor, selecione um arquivo antes de enviar.")
+                        st.error("Por favor, selecione um arquivo antes de enviar.")
