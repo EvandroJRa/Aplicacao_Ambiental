@@ -1,6 +1,8 @@
 from datetime import datetime, timezone, date
 from typing import List, Optional
-from sqlalchemy import Column, String, Text, Boolean, Numeric, Date, DateTime, ForeignKey, func, Integer, Float
+
+# Imports limpos, sem duplicidades e apenas com o que realmente usamos
+from sqlalchemy import String, Text, Boolean, Numeric, Date, DateTime, ForeignKey, Float, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 # ==========================================
@@ -18,7 +20,7 @@ class Cliente(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
-    # Novo campo para o código da sua consultoria (ex: CLI-001)
+    # Código da sua consultoria (ex: CLI-001)
     codigo_identificador: Mapped[Optional[str]] = mapped_column(String(50), unique=True, index=True)
     
     nome: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -42,9 +44,12 @@ class Usuario(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     senha_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     cliente_id: Mapped[int] = mapped_column(ForeignKey("clientes.id"), nullable=False)
-    is_admin = Column(Boolean, default=False)
     
-    # Campo de Status Online (Padronizado)
+    # 🟢 is_admin atualizado para o padrão Mapped
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    exigir_troca_senha: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    # 🟢 duplicidade removida
     ultima_atividade: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc), 
@@ -52,17 +57,16 @@ class Usuario(Base):
     )
 
     cliente: Mapped["Cliente"] = relationship(back_populates="usuarios")
-    exigir_troca_senha: Mapped[bool] = mapped_column(Boolean, default=True)
-    ultima_atividade: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class Auditoria(Base):
-    __tablename__ = "auditoria_registros"
+    __tablename__ = "auditoria" 
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), nullable=False)
-    
-    # Snapshot dos dados
+    cliente_id: Mapped[Optional[int]] = mapped_column(ForeignKey("clientes.id"))
+
+    # Snapshot dos dados estáticos
     email_usuario: Mapped[Optional[str]] = mapped_column(String(255))
     nome_empresa: Mapped[Optional[str]] = mapped_column(String(255))
     cnpj_empresa: Mapped[Optional[str]] = mapped_column(String(18))
@@ -76,13 +80,14 @@ class Auditoria(Base):
     longitude: Mapped[Optional[float]] = mapped_column(Float)
     user_agent: Mapped[Optional[str]] = mapped_column(String(500)) 
     
-    data_hora: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-    usuario: Mapped["Usuario"] = relationship()
-
-    data_hora: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    data_hora: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        default=lambda: datetime.now(timezone.utc)
     )
-    
+
+    # Relacionamentos
+    usuario: Mapped["Usuario"] = relationship()
+    cliente: Mapped[Optional["Cliente"]] = relationship()
 
 
 class PontoMonitoramento(Base):
@@ -147,4 +152,3 @@ class NotificacaoWhatsApp(Base):
 
     cliente: Mapped["Cliente"] = relationship(back_populates="notificacoes")
     documento: Mapped[Optional["Documento"]] = relationship(back_populates="notificacoes")
-

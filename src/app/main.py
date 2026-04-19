@@ -334,6 +334,7 @@ async def registrar_auditoria(
 
     novo_log = Auditoria(
         usuario_id=current_user.id,
+        cliente_id=current_user.cliente_id,
         email_usuario=current_user.email,
         evento=item.evento,
         detalhes=item.detalhes,
