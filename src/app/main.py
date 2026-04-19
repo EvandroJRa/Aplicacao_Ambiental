@@ -336,6 +336,23 @@ async def registrar_auditoria(
     return {"status": "registrado", "evento": item.evento}
 
 # ==========================================
+# 2. ROTA PARA LISTAR AUDITORIA (USADA PELO ADMIN - GET) <--- ADICIONE ESTA!
+# ==========================================
+@app.get("/auditoria/")
+async def listar_auditoria(
+    db: AsyncSession = Depends(get_db), 
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Retorna a lista de logs para o painel administrativo.
+    """
+    from sqlalchemy import select
+    # Busca os logs ordenados do mais recente para o mais antigo
+    result = await db.execute(select(Auditoria).order_by(Auditoria.data_hora.desc()))
+    logs = result.scalars().all()
+    return logs
+
+# ==========================================
 # ROTA DE PING (BATIMENTO CARDÍACO)
 # ==========================================
 @app.post("/usuarios/ping")
