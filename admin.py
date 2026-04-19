@@ -47,6 +47,57 @@ def fazer_login(email, senha):
     st.error("E-mail ou senha incorretos.")
     return False
 
+def exibir_auditoria(token):
+    headers = {"Authorization": f"Bearer {token}"}
+    resposta = requests.get(f"{API_URL}/auditoria/", headers=headers)
+    
+    if resposta.status_code == 200:
+        dados = resposta.json()
+        df = pd.DataFrame(dados)
+
+        if not df.empty:
+            # 1. Ajuste das Datas (DD-MM-YYYY)
+            # Convertemos para datetime e depois para string formatada
+            df['data_hora'] = pd.to_datetime(df['data_hora']).dt.strftime('%d-%m-%Y %H:%M:%S')
+
+            # 2. Interface de Filtros
+            st.subheader("🔍 Filtros de Pesquisa")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                busca_email = st.text_input("E-mail do Usuário")
+            with col2:
+                # Pegamos os eventos únicos para preencher o selectbox
+                eventos_disponiveis = ["Todos"] + sorted(df['evento'].unique().tolist())
+                filtro_evento = st.selectbox("Tipo de Evento", eventos_disponiveis)
+            with col3:
+                busca_empresa = st.text_input("Nome da Empresa")
+
+            # 3. Lógica de Filtragem (Aplicada ao DataFrame)
+            if busca_email:
+                df = df[df['email_usuario'].str.contains(busca_email, case=False, na=False)]
+            
+            if filtro_evento != "Todos":
+                df = df[df['evento'] == filtro_evento]
+                
+            if busca_empresa:
+                df = df[df['nome_empresa'].str.contains(busca_empresa, case=False, na=False)]
+
+            # 4. Exibição da Tabela
+            st.write(f"Exibindo {len(df)} registros encontrados:")
+            st.dataframe(
+                df, 
+                use_container_width=True,
+                column_order=[
+                    "data_hora", "email_usuario", "nome_empresa", 
+                    "evento", "detalhes", "ip"
+                ] # Define uma ordem mais limpa para o Admin
+            )
+        else:
+            st.info("Nenhum registro de auditoria encontrado.")
+    else:
+        st.error("Erro ao carregar dados de auditoria.")
+
 # ==========================================
 # INTERFACE PRINCIPAL
 # ==========================================
@@ -61,8 +112,17 @@ if st.session_state["admin_token"] is None:
 else:
     headers = {"Authorization": f"Bearer {st.session_state['admin_token']}"}
     st.sidebar.title("Menu Administrativo")
-    menu = st.sidebar.radio("Escolha uma ação:", ["Dashboard", "Listar Clientes", "Auditoria", "Novo Cliente", "Enviar Laudo/Documento"])
-    
+    menu = st.sidebar.radio(
+        "Escolha uma ação:", 
+        ["Dashboard", 
+         "Listar Clientes", 
+         "Auditoria", 
+         "Novo Cliente", 
+         "Enviar Laudo/Documento", 
+         "Debug Banco", 
+         "Inspeção de Dados"]
+    )
+
     if st.sidebar.button("Sair (Logout)"):
         st.session_state["admin_token"] = None
         st.rerun()
@@ -139,11 +199,8 @@ else:
     # -----------------------------------------
     elif menu == "Auditoria":
         st.header("🕵️ Registro de Auditoria")
-        resp_logs = requests.get(f"{API_URL}/auditoria/", headers=headers)
-        if resp_logs.status_code == 200:
-            logs = resp_logs.json()
-            if logs:
-                st.dataframe(pd.DataFrame(logs)[['data_hora', 'email_usuario', 'evento', 'detalhes']], use_container_width=True)
+        # 🟢 A MÁGICA AQUI: Chama a função que tem os filtros e formatação!
+        exibir_auditoria(st.session_state['admin_token'])
 
     # -----------------------------------------
     # TELA 3: NOVO CLIENTE
