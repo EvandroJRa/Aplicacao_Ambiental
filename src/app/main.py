@@ -330,6 +330,7 @@ async def registrar_auditoria(
             nome_empresa_logada = cliente_db.nome
 
     novo_log = Auditoria(
+        usuario_id=current_user.id,
         email_usuario=current_user.email,
         evento=item.evento,
         detalhes=item.detalhes,
@@ -339,7 +340,7 @@ async def registrar_auditoria(
         nome_empresa=nome_empresa_logada
     )
     db.add(novo_log)
-    await db.commit()
+    await db.commit()# Se falhar aqui, o log do Render mostrará um IntegrityError
     return {"status": "registrado", "evento": item.evento}
 
 # ==========================================
