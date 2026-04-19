@@ -33,8 +33,10 @@ app = FastAPI(title="API - Portal Ambiental", version="1.0.0")
 # O Guarda-Costas: Define que a rota de login é a "/token" (Deve ficar solto no código, logo após criar o 'app')
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# Transforma a pasta "storage" em uma URL acessível pelo navegador
-os.makedirs("storage", exist_ok=True)
+# Cria a pasta fisicamente se ela não existir para o Render não dar erro
+os.makedirs("storage", exist_ok=True) 
+
+# Monta a rota para arquivos estáticos
 app.mount("/storage", StaticFiles(directory="storage"), name="storage")
 
 @app.get("/")
@@ -310,27 +312,28 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
 # ==========================================
 # ROTA PARA LISTAR AUDITORIA (USADA NO ADMIN)
 # ==========================================
-@app.get("/auditoria/", response_model=list[schemas.AuditoriaResponse])
-async def listar_auditoria(
-    db: AsyncSession = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    # Por segurança, apenas o Admin pode ver os logs (usuario_id do admin geralmente é o 1 ou 3, como vimos)
-    # Mas por enquanto, vamos liberar para você testar
-    result = await db.execute(select(Auditoria).order_by(Auditoria.data_hora.desc()))
-    logs = result.scalars().all()
-    return logs
+@app.post("/auditoria/")
+async def registrar_auditoria(item: schemas.LogCreate, db: AsyncSession = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+    novo_log = Auditoria(
+        email_usuario=current_user.email,
+        evento=item.evento,
+        detalhes=item.detalhes,
+        latitude=item.latitude,
+        longitude=item.longitude,
+        ip="Capturado via App",
+        nome_empresa="Cliente"
+    )
+    db.add(novo_log)
+    await db.commit()
+    return {"status": "registrado"}
 
+# 2. Reforce a rota de Ping
 @app.post("/usuarios/ping")
-async def usuario_ping(
-    db: AsyncSession = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    # O simples fato de chamar esta rota já atualiza o 'ultima_atividade' 
-    # devido ao 'onupdate' que colocamos no model.
+async def usuario_ping(db: AsyncSession = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+    # Atualiza a hora da última atividade
     current_user.ultima_atividade = datetime.now(timezone.utc)
     await db.commit()
-    return {"status": "online"}
+    return {"status": "online", "timestamp": current_user.ultima_atividade}
 
 
 ######
