@@ -375,10 +375,8 @@ async def usuario_ping(
     await db.commit()
     return {"status": "online", "timestamp": current_user.ultima_atividade}
 
-
 ######
 # TESTES
-
 @app.post("/testar-upload/")
 async def testar_upload(
     arquivo: UploadFile = File(...),

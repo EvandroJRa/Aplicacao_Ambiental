@@ -96,15 +96,17 @@ for i in range(1, quantidade_clientes + 1):
     with open(nome_arquivo, "wb") as f:
         f.write(f"%PDF-1.4\n%Fake PDF for Client {i}\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n".encode())
 
-    # Faz o Upload
+    # Faz o Upload batendo na rota exata do main.py
     with open(nome_arquivo, "rb") as f:
         files = {"arquivo": (nome_arquivo, f, "application/pdf")}
         data = {
-            "cliente_id": cliente_id,
             "tipo_documento": "Laudo Laboratorial de Teste"
+            # Removemos o cliente_id daqui de dentro, pois agora ele vai na URL!
         }
         
-        res_upload = requests.post(f"{API_URL}/documentos/upload", headers=headers, files=files, data=data)
+        # 🟢 O PULO DO GATO: A URL agora inclui o ID do cliente dinamicamente
+        url_upload = f"{API_URL}/clientes/{cliente_id}/documentos/"
+        res_upload = requests.post(url_upload, headers=headers, files=files, data=data)
 
     if res_upload.status_code in [200, 201]:
         print_sucesso(f"Documento vinculado ao Cliente {i} com sucesso!\n")
