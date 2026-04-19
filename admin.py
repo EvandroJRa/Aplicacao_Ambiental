@@ -89,7 +89,7 @@ else:
             
             if resp.status_code == 200:
                 clientes = resp.json()
-                st.write(clientes[0]) # <--- DESCOMENTE ESTA LINHA PARA TESTAR
+                #st.write(clientes[0]) # <--- DESCOMENTE ESTA LINHA PARA TESTAR
                 filtro = st.text_input("🔍 Pesquisar por ID de Faturamento ou Nome")
                 
                 if filtro:
@@ -109,7 +109,7 @@ else:
                     # Mapeamento de exibição
                     mapeamento = {
                         'id': 'ID Banco',
-                        'id_faturamento_view': 'ID Faturamento', # Usamos nossa coluna normalizada
+                        'id_faturamento_view': 'ID Faturamento', 
                         'nome': 'Razão Social',
                         'cnpj': 'CNPJ',
                         'email': 'E-mail'
@@ -184,3 +184,46 @@ else:
                             if res.status_code == 200: st.success("Enviado!"); st.balloons()
                             else: st.error(f"Erro: {res.text}")
                         else: st.error("Selecione um arquivo!")
+
+    # -----------------------------------------
+    # TELA 5: DEBUG TABELAS
+    # -----------------------------------------
+    elif menu == "Debug Banco":
+            st.header("🗄️ Inspeção Direta do Banco de Dados")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader("Tabela: Usuários")
+                res_u = requests.get(f"{API_URL}/usuarios/", headers=headers)
+                if res_u.status_code == 200:
+                    st.write(res_u.json()) # Mostra o JSON bruto para conferir os nomes dos campos
+                    st.dataframe(pd.DataFrame(res_u.json()))
+            
+            with col2:
+                st.subheader("Tabela: Clientes")
+                res_c = requests.get(f"{API_URL}/clientes/", headers=headers)
+                if res_c.status_code == 200:
+                    st.dataframe(pd.DataFrame(res_c.json()))
+
+    elif menu == "Inspeção de Dados":
+        st.header("🔍 Verificação Interna do Banco")
+        
+        # Busca os usuários para ver o campo de atividade
+        resp = requests.get(f"{API_URL}/usuarios/", headers=headers)
+        if resp.status_code == 200:
+            usuarios = resp.json()
+            st.subheader("Tabela de Usuários (Bruto)")
+            
+            if usuarios:
+                df_u = pd.DataFrame(usuarios)
+                # Mostramos a hora exata que está no banco para comparar com o seu relógio
+                cols = ['email', 'cliente_id', 'ultima_atividade']
+                st.dataframe(df_u[[c for c in cols if c in df_u.columns]], use_container_width=True)
+                
+                # Debug de fuso horário
+                st.info(f"🕒 Hora atual do seu navegador (Local): {datetime.now()}")
+                st.info(f"🌍 Hora atual para comparação (UTC): {datetime.now(timezone.utc)}")
+            else:
+                st.warning("Nenhum usuário encontrado.")                            
+                            
