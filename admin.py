@@ -30,9 +30,21 @@ if "admin_token" not in st.session_state:
 
 def fazer_login(email, senha):
     resposta = requests.post(f"{API_URL}/token", data={"username": email, "password": senha})
+    
     if resposta.status_code == 200:
-        st.session_state["admin_token"] = resposta.json().get("access_token")
-        return True
+        dados = resposta.json()
+        
+        # 🟢 A CATRACA DE SEGURANÇA: Só entra se tiver o crachá de admin!
+        if dados.get("is_admin") == True:
+            st.session_state["admin_token"] = dados.get("access_token")
+            return True
+        else:
+            # Cliente tentou logar no painel administrativo
+            st.error("❌ Acesso Negado: Área restrita para a equipe da Consensu.")
+            return False
+            
+    # Se a senha estiver errada ou e-mail não existir
+    st.error("E-mail ou senha incorretos.")
     return False
 
 # ==========================================

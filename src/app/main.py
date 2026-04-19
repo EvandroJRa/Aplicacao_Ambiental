@@ -307,7 +307,10 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
     }
     token_gerado = criar_token_acesso(dados=dados_token)
     
-    return {"access_token": token_gerado, "token_type": "bearer"}
+    return {"access_token": token_gerado, 
+            "token_type": "bearer", 
+            "is_admin": usuario.is_admin
+            }               
 
 # ==========================================
 # ROTA PARA REGISTRO DE AUDITORIA (USADA PELO PORTAL)

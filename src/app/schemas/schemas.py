@@ -99,6 +99,7 @@ class UsuarioResponse(UsuarioBase):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    is_admin: bool = False  # Para o frontend saber se o usuário é admin e liberar as funcionalidades extras
 
 # ==========================================
 # SCHEMAS DE AUDITORIA E LOGS

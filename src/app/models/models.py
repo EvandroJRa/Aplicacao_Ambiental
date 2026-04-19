@@ -1,6 +1,6 @@
 from datetime import datetime, timezone, date
 from typing import List, Optional
-from sqlalchemy import String, Text, Boolean, Numeric, Date, DateTime, ForeignKey, func, Integer, Float
+from sqlalchemy import Column, String, Text, Boolean, Numeric, Date, DateTime, ForeignKey, func, Integer, Float
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 # ==========================================
@@ -42,6 +42,7 @@ class Usuario(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     senha_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     cliente_id: Mapped[int] = mapped_column(ForeignKey("clientes.id"), nullable=False)
+    is_admin = Column(Boolean, default=False)
     
     # Campo de Status Online (Padronizado)
     ultima_atividade: Mapped[Optional[datetime]] = mapped_column(
