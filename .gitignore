@@ -57,3 +57,7 @@ token.txt
 reset_banco.py
 criar_admin.py
 reset_banco_local.py
+reset_nuclear.py
+migracao.py
+
+arquitetura.md
