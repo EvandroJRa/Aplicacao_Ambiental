@@ -310,27 +310,42 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
     return {"access_token": token_gerado, "token_type": "bearer"}
 
 # ==========================================
-# ROTA PARA LISTAR AUDITORIA (USADA NO ADMIN)
+# ROTA PARA REGISTRO DE AUDITORIA (USADA PELO PORTAL)
 # ==========================================
-@app.post("/auditoria/")
-async def registrar_auditoria(item: schemas.LogCreate, db: AsyncSession = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+@app.post("/auditoria/", status_code=201)
+async def registrar_auditoria(
+    item: schemas.AuditoriaCreate, 
+    db: AsyncSession = Depends(get_db), 
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Registra eventos de segurança e navegação (ex: Downloads, Acessos).
+    Os dados da empresa são vinculados automaticamente pelo token do usuário.
+    """
     novo_log = Auditoria(
         email_usuario=current_user.email,
         evento=item.evento,
         detalhes=item.detalhes,
         latitude=item.latitude,
         longitude=item.longitude,
-        ip="Capturado via App",
-        nome_empresa="Cliente"
+        ip=item.ip or "Capturado via Portal",
+        nome_empresa=current_user.cliente.nome if current_user.cliente else "Admin/Apoio"
     )
     db.add(novo_log)
     await db.commit()
-    return {"status": "registrado"}
+    return {"status": "registrado", "evento": item.evento}
 
-# 2. Reforce a rota de Ping
+# ==========================================
+# ROTA DE PING (BATIMENTO CARDÍACO)
+# ==========================================
 @app.post("/usuarios/ping")
-async def usuario_ping(db: AsyncSession = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
-    # Atualiza a hora da última atividade
+async def usuario_ping(
+    db: AsyncSession = Depends(get_db), 
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Atualiza o timestamp de última atividade para o Dashboard em tempo real.
+    """
     current_user.ultima_atividade = datetime.now(timezone.utc)
     await db.commit()
     return {"status": "online", "timestamp": current_user.ultima_atividade}

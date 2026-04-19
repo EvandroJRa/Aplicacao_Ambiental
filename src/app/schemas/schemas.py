@@ -126,3 +126,4 @@ class AuditoriaResponse(AuditoriaBase):
 
     class Config:
         from_attributes = True
+
