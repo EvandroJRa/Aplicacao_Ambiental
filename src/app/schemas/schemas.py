@@ -89,7 +89,10 @@ class UsuarioCreate(UsuarioBase):
 # 👇 Essa é a classe que o GET vai usar para devolver a lista sem mostrar as senhas!
 class UsuarioResponse(UsuarioBase):
     id: int
-    
+    is_admin: bool  # Importante para o Admin saber o nível de acesso
+    # 🟢 O "PULO DO GATO": Adicionando o campo de telemetria
+    ultima_atividade: Optional[datetime] = None 
+
     class Config:
         from_attributes = True
 

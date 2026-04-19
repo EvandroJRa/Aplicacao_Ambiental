@@ -318,10 +318,17 @@ async def registrar_auditoria(
     db: AsyncSession = Depends(get_db), 
     current_user: Usuario = Depends(get_current_user)
 ):
-    """
-    Registra eventos de segurança e navegação (ex: Downloads, Acessos).
-    Os dados da empresa são vinculados automaticamente pelo token do usuário.
-    """
+    # 🟢 RESOLVENDO O MISSING GREENLET:
+    # Em vez de current_user.cliente.nome (que dá erro), buscamos o cliente no banco
+    nome_empresa_logada = "Admin/Apoio"
+    
+    if current_user.cliente_id:
+        # Busca o cliente de forma assíncrona e segura
+        from src.app.models.models import Cliente # Import local para evitar erro circular
+        cliente_db = await db.get(Cliente, current_user.cliente_id)
+        if cliente_db:
+            nome_empresa_logada = cliente_db.nome
+
     novo_log = Auditoria(
         email_usuario=current_user.email,
         evento=item.evento,
@@ -329,7 +336,7 @@ async def registrar_auditoria(
         latitude=item.latitude,
         longitude=item.longitude,
         ip=item.ip or "Capturado via Portal",
-        nome_empresa=current_user.cliente.nome if current_user.cliente else "Admin/Apoio"
+        nome_empresa=nome_empresa_logada
     )
     db.add(novo_log)
     await db.commit()
