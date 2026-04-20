@@ -258,41 +258,62 @@ else:
     # TELA 5: DEBUG TABELAS
     # -----------------------------------------
     elif menu == "Debug Banco":
-            st.header("🗄️ Inspeção Direta do Banco de Dados")
+        st.header("🗄️ Inspeção Direta do Banco de Dados")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("👥 Tabela: Usuários")
+            res_u = requests.get(f"{API_URL}/usuarios/", headers=headers)
+            if res_u.status_code == 200:
+                df_u = pd.DataFrame(res_u.json())
+                if not df_u.empty:
+                    # Renomeando para ficar amigável
+                    mapeamento_u = {
+                        'id': 'ID',
+                        'email': 'E-mail de Acesso',
+                        'cliente_id': 'ID Empresa (Vínculo)',
+                        'is_admin': 'É Administrador?'
+                    }
+                    # Seleciona apenas o que importa e renomeia
+                    cols_u = [c for c in mapeamento_u.keys() if c in df_u.columns]
+                    st.dataframe(df_u[cols_u].rename(columns=mapeamento_u), use_container_width=True, hide_index=True)
             
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.subheader("Tabela: Usuários")
-                res_u = requests.get(f"{API_URL}/usuarios/", headers=headers)
-                if res_u.status_code == 200:
-                    st.write(res_u.json()) # Mostra o JSON bruto para conferir os nomes dos campos
-                    st.dataframe(pd.DataFrame(res_u.json()))
-            
-            with col2:
-                st.subheader("Tabela: Clientes")
-                res_c = requests.get(f"{API_URL}/clientes/", headers=headers)
-                if res_c.status_code == 200:
-                    st.dataframe(pd.DataFrame(res_c.json()))
+        with col2:
+            st.subheader("🏢 Tabela: Clientes")
+            res_c = requests.get(f"{API_URL}/clientes/", headers=headers)
+            if res_c.status_code == 200:
+                df_c = pd.DataFrame(res_c.json())
+                if not df_c.empty:
+                    mapeamento_c = {
+                        'id': 'ID Banco',
+                        'nome': 'Razão Social',
+                        'codigo_identificador': 'Cód. Faturamento',
+                        'cnpj': 'CNPJ'
+                    }
+                    cols_c = [c for c in mapeamento_c.keys() if c in df_c.columns]
+                    st.dataframe(df_c[cols_c].rename(columns=mapeamento_c), use_container_width=True, hide_index=True)
 
     elif menu == "Inspeção de Dados":
-        st.header("🔍 Verificação Interna do Banco")
+        st.header("🔍 Monitoramento de Atividade")
         
-        # Busca os usuários para ver o campo de atividade
         resp = requests.get(f"{API_URL}/usuarios/", headers=headers)
         if resp.status_code == 200:
             usuarios = resp.json()
-            st.subheader("Tabela de Usuários (Bruto)")
-            
             if usuarios:
                 df_u = pd.DataFrame(usuarios)
-                # Mostramos a hora exata que está no banco para comparar com o seu relógio
-                cols = ['email', 'cliente_id', 'ultima_atividade']
-                st.dataframe(df_u[[c for c in cols if c in df_u.columns]], use_container_width=True)
                 
-                # Debug de fuso horário
-                st.info(f"🕒 Hora atual do seu navegador (Local): {datetime.now()}")
-                st.info(f"🌍 Hora atual para comparação (UTC): {datetime.now(timezone.utc)}")
-            else:
-                st.warning("Nenhum usuário encontrado.")                            
-                            
+                # Ajustando a data de atividade para ficar legível
+                if 'ultima_atividade' in df_u.columns:
+                    df_u['ultima_atividade'] = pd.to_datetime(df_u['ultima_atividade']).dt.strftime('%d/%m/%Y %H:%M:%S')
+                
+                st.subheader("Histórico de Presença")
+                st.dataframe(
+                    df_u[['email', 'ultima_atividade']].rename(columns={'email': 'Usuário', 'ultima_atividade': 'Último Sinal de Vida'}),
+                    use_container_width=True, 
+                    hide_index=True
+                )
+                
+                # Alertas de Fuso Horário (Útil para conferir o Render)
+                st.info(f"🕒 Seu Relógio: {datetime.now().strftime('%H:%M:%S')}")
+                st.info(f"🌍 Relógio do Servidor (UTC): {datetime.now(timezone.utc).strftime('%H:%M:%S')}")    
