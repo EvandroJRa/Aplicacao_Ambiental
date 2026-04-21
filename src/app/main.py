@@ -323,6 +323,14 @@ async def registrar_auditoria(
     db: AsyncSession = Depends(get_db), 
     current_user: Usuario = Depends(get_current_user)
 ):
+    # Se o Portal enviou um IP (capturado via JS), usamos ele. 
+    # Caso contrário, tentamos pegar do Header (útil para acessos diretos à API).
+    ip_final = item.ip 
+    
+    if not ip_final or ip_final == "Capturado via Portal":
+        ip_real = request.headers.get("x-forwarded-for")
+        ip_final = ip_real.split(",")[0] if ip_real else request.client.host
+
     # Captura o IP Real através do Proxy do Render
     # O 'x-forwarded-for' contém o IP do cliente antes de passar pelo balanceador do Render
     ip_real = request.headers.get("x-forwarded-for")
@@ -347,12 +355,13 @@ async def registrar_auditoria(
         detalhes=item.detalhes,
         latitude=item.latitude,
         longitude=item.longitude,
-        ip=ip_real, # <--- AGORA USA O IP REAL CAPTURADO
+        ip =ip_final, # <--- Usa o IP final determinado pelo IP final
+        #ip=ip_real, # <--- AGORA USA O IP REAL CAPTURADO
         nome_empresa=nome_empresa_logada
     )
     db.add(novo_log)
     await db.commit()
-    return {"status": "registrado", "evento": item.evento, "ip_rastreado": ip_real}
+    return {"status": "registrado", "evento": item.evento, "ip_rastreado": ip_final}
 
 # ==========================================
 # 2. ROTA PARA LISTAR AUDITORIA (USADA PELO ADMIN - GET)
