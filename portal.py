@@ -18,6 +18,13 @@ st.set_page_config(page_title="Portal Ambiental", page_icon="🌿", layout="cent
 js_code = 'await fetch("https://api64.ipify.org?format=json").then(res => res.json()).then(data => data.ip)'
 ip_usuario = st_javascript(js_code)
 
+# --- ESPERA ESTRATÉGICA ---
+# Se o IP ainda não foi capturado, mostramos um aviso rápido
+if not ip_usuario:
+    with st.spinner("Protegendo sua conexão..."):
+        time.sleep(1.5) # 1.5 segundos é o suficiente para o JS responder
+        st.rerun() # Recarrega a página agora com o IP preenchido
+
 def registrar_auditoria_portal(doc):
     # Se o JS ainda não carregou, o ip_usuario será 0 ou None. 
     # Vamos garantir que ele envie uma string para a API não ignorar.
