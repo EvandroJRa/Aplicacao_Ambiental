@@ -323,8 +323,12 @@ async def registrar_auditoria(
     db: AsyncSession = Depends(get_db), 
     current_user: Usuario = Depends(get_current_user)
 ):
-    print("=== NOVO REGISTRO DE AUDITORIA inicio do sistema ===")
-    print(f"DEBUG HEADERS: {dict(request.headers)}")
+# Forçamos o log a sair IMEDIATAMENTE
+    import sys
+    print("--- INICIO DO REGISTRO DE AUDITORIA ---", file=sys.stderr, flush=True)
+    print(f"USUARIO: {current_user.email}", file=sys.stderr, flush=True)
+    print(f"HEADERS: {dict(request.headers)}", file=sys.stderr, flush=True)
+    print(f"BODY IP: {item.ip}", file=sys.stderr, flush=True)
 
     # 1. Tenta pegar o IP que o Portal enviou (via JavaScript)
     ip_final = item.ip 

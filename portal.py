@@ -26,6 +26,7 @@ if not ip_usuario:
         st.rerun() # Recarrega a página agora com o IP preenchido
 
 def registrar_auditoria_portal(doc):
+    st.toast(f"Registrando acesso para {doc['tipo_documento']}...") # Isso aparecerá no seu celular
     # Se o JS ainda não carregou, o ip_usuario será 0 ou None. 
     # Vamos garantir que ele envie uma string para a API não ignorar.
     envio_ip = str(ip_usuario) if ip_usuario else "Aguardando JS..."
