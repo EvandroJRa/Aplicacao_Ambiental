@@ -23,6 +23,7 @@ from sqlalchemy.future import select
 from sqlalchemy import select
 from src.app.seguranca import get_current_user
 from datetime import datetime, timezone
+from fastapi import Request
 
 
 # ==========================================
@@ -318,16 +319,22 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
 @app.post("/auditoria/", status_code=201)
 async def registrar_auditoria(
     item: schemas.AuditoriaCreate, 
+    request: Request, # <--- ADICIONADO AQUI - cap ip real do cliente
     db: AsyncSession = Depends(get_db), 
     current_user: Usuario = Depends(get_current_user)
 ):
-    # 🟢 RESOLVENDO O MISSING GREENLET:
-    # Em vez de current_user.cliente.nome (que dá erro), buscamos o cliente no banco
+    # Captura o IP Real através do Proxy do Render
+    # O 'x-forwarded-for' contém o IP do cliente antes de passar pelo balanceador do Render
+    ip_real = request.headers.get("x-forwarded-for")
+    if ip_real:
+        ip_real = ip_real.split(",")[0] # Pega o primeiro IP da lista
+    else:
+        ip_real = request.client.host # Fallback para local
+
     nome_empresa_logada = "Admin/Apoio"
     
     if current_user.cliente_id:
-        # Busca o cliente de forma assíncrona e segura
-        from src.app.models.models import Cliente # Import local para evitar erro circular
+        from src.app.models.models import Cliente
         cliente_db = await db.get(Cliente, current_user.cliente_id)
         if cliente_db:
             nome_empresa_logada = cliente_db.nome
@@ -340,15 +347,15 @@ async def registrar_auditoria(
         detalhes=item.detalhes,
         latitude=item.latitude,
         longitude=item.longitude,
-        ip=item.ip or "Capturado via Portal",
+        ip=ip_real, # <--- AGORA USA O IP REAL CAPTURADO
         nome_empresa=nome_empresa_logada
     )
     db.add(novo_log)
-    await db.commit()# Se falhar aqui, o log do Render mostrará um IntegrityError
-    return {"status": "registrado", "evento": item.evento}
+    await db.commit()
+    return {"status": "registrado", "evento": item.evento, "ip_rastreado": ip_real}
 
 # ==========================================
-# 2. ROTA PARA LISTAR AUDITORIA (USADA PELO ADMIN - GET) <--- ADICIONE ESTA!
+# 2. ROTA PARA LISTAR AUDITORIA (USADA PELO ADMIN - GET)
 # ==========================================
 @app.get("/auditoria/")
 async def listar_auditoria(

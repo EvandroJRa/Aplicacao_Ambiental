@@ -32,30 +32,21 @@ else:
 # ==========================================
 # 2. FUNÇÃO DE DOWNLOAD E AUDITORIA
 # ==========================================
-def registrar_e_preparar_download(doc):
+def registrar_auditoria_portal(doc):
+    """Envia o log para a API apenas quando o usuário clica no botão"""
     dados_auditoria = {
         "evento": "DOWNLOAD_DOCUMENTO",
-        "detalhes": f"ID: {doc['id']} - Tipo: {doc['tipo_documento']}",
+        "detalhes": f"Baixou: {doc['tipo_documento']} (ID: {doc['id']})",
         "latitude": latitude,
         "longitude": longitude
     }
-    
     headers = {"Authorization": f"Bearer {st.session_state['token']}"}
-    
     try:
-        # Registra no banco
+        # Note que não passamos o IP aqui. 
+        # O main.py vai detectar o IP real automaticamente pelos headers!
         requests.post(f"{API_URL}/auditoria/", json=dados_auditoria, headers=headers)
-        
-        # Busca o arquivo real
-        url_arquivo = f"{API_URL}/{doc['url_arquivo']}".replace(" ", "%20")
-        res_arquivo = requests.get(url_arquivo)
-        
-        if res_arquivo.status_code == 200:
-            return res_arquivo.content
-    except Exception:
-        st.error("Erro na validação de segurança do download.")
-    return None
-
+    except:
+        pass
 # ==========================================
 # GERENCIAMENTO DE SESSÃO E API
 # ==========================================
@@ -97,16 +88,14 @@ if st.session_state["token"] is None:
 # ==========================================
 else:
     # --- SISTEMA DE STATUS ONLINE (BATIMENTO CARDÍACO) ---
-    # Atualiza silenciosamente a cada 60 segundos
     st_autorefresh(interval=60000, key="frequencia_online")
     
     try:
         headers_ping = {"Authorization": f"Bearer {st.session_state['token']}"}
         requests.post(f"{API_URL}/usuarios/ping", headers=headers_ping)
     except:
-        pass # Silencia se a rede falhar momentaneamente
+        pass
 
-    # --- INTERFACE ---
     dados_usuario = extrair_dados_do_token(st.session_state["token"])
     cliente_id = dados_usuario.get("cliente_id")
     email_logado = dados_usuario.get("sub")
@@ -128,20 +117,32 @@ else:
     if resp.status_code == 200:
         documentos = resp.json()
         for doc in documentos:
-            with st.expander(f"📄 {doc['tipo_documento']} - {doc['data_upload'][:10]}"):
+            # Melhorando a visualização da data no portal
+            data_simples = doc['data_upload'][:10] # Pega AAAA-MM-DD
+            
+            with st.expander(f"📄 {doc['tipo_documento']} - {data_simples}"):
                 nome_arquivo_limpo = doc['url_arquivo'].split("/")[-1]
+                url_completa = f"{API_URL}/{doc['url_arquivo']}".replace(" ", "%20")
                 
-                conteudo_arquivo = registrar_e_preparar_download(doc)
-                
-                if conteudo_arquivo:
-                    st.download_button(
-                        label="⬇️ Baixar e Registrar Acesso",
-                        data=conteudo_arquivo,
-                        file_name=nome_arquivo_limpo,
-                        mime="application/pdf",
-                        key=f"btn_{doc['id']}"
-                    )
-                else:
-                    st.error("Arquivo indisponível para download.")
+                try:
+                    # 1. Buscamos o conteúdo do arquivo
+                    res_arq = requests.get(url_completa, headers=headers)
+                    
+                    if res_arq.status_code == 200:
+                        # 2. O BOTÃO "DEDO-DURO"
+                        # Ele só chama a função de auditoria quando é CLICADO
+                        st.download_button(
+                            label="⬇️ Baixar Laudo Oficial",
+                            data=res_arq.content,
+                            file_name=nome_arquivo_limpo,
+                            mime="application/pdf",
+                            key=f"btn_{doc['id']}",
+                            on_click=registrar_auditoria_portal, # <--- Chama a função
+                            args=(doc,) # <--- Passa os dados do documento para a função
+                        )
+                    else:
+                        st.error("Arquivo não encontrado no servidor.")
+                except Exception as e:
+                    st.error(f"Erro ao preparar download: {e}")
     else:
         st.info("Nenhum laudo encontrado para sua conta.")
