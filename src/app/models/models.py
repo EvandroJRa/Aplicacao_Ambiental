@@ -1,7 +1,6 @@
 from datetime import datetime, timezone, date
 from typing import List, Optional
 
-# Imports limpos, sem duplicidades e apenas com o que realmente usamos
 from sqlalchemy import String, Text, Boolean, Numeric, Date, DateTime, ForeignKey, Float, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -19,17 +18,13 @@ class Cliente(Base):
     __tablename__ = "clientes"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-
-    # Código da sua consultoria (ex: CLI-001)
     codigo_identificador: Mapped[Optional[str]] = mapped_column(String(50), unique=True, index=True)
-    
     nome: Mapped[str] = mapped_column(String(255), nullable=False)
     cnpj: Mapped[str] = mapped_column(String(18), unique=True, nullable=False)
     whatsapp_contato: Mapped[str] = mapped_column(String(20), nullable=False)
     email: Mapped[Optional[str]] = mapped_column(String(255))
     criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
-    # Relacionamentos
     usuarios: Mapped[List["Usuario"]] = relationship(back_populates="cliente", cascade="all, delete-orphan")
     pontos: Mapped[List["PontoMonitoramento"]] = relationship(back_populates="cliente", cascade="all, delete-orphan")
     processos: Mapped[List["Processo"]] = relationship(back_populates="cliente", cascade="all, delete-orphan")
@@ -44,15 +39,11 @@ class Usuario(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     senha_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     cliente_id: Mapped[int] = mapped_column(ForeignKey("clientes.id"), nullable=False)
-    
-    # 🟢 is_admin atualizado para o padrão Mapped
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     exigir_troca_senha: Mapped[bool] = mapped_column(Boolean, default=True)
-    
-    # 🟢 duplicidade removida
     ultima_atividade: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc), 
+        default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc)
     )
 
@@ -60,32 +51,30 @@ class Usuario(Base):
 
 
 class Auditoria(Base):
-    __tablename__ = "auditoria" 
+    __tablename__ = "auditoria"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), nullable=False)
     cliente_id: Mapped[Optional[int]] = mapped_column(ForeignKey("clientes.id"))
 
-    # Snapshot dos dados estáticos
     email_usuario: Mapped[Optional[str]] = mapped_column(String(255))
     nome_empresa: Mapped[Optional[str]] = mapped_column(String(255))
     cnpj_empresa: Mapped[Optional[str]] = mapped_column(String(18))
     telefone_empresa: Mapped[Optional[str]] = mapped_column(String(20))
-    
-    evento: Mapped[str] = mapped_column(String(100), nullable=False) 
-    detalhes: Mapped[Optional[str]] = mapped_column(Text) 
-    
+
+    evento: Mapped[str] = mapped_column(String(100), nullable=False)
+    detalhes: Mapped[Optional[str]] = mapped_column(Text)
+
     ip: Mapped[Optional[str]] = mapped_column(String(50))
     latitude: Mapped[Optional[float]] = mapped_column(Float)
     longitude: Mapped[Optional[float]] = mapped_column(Float)
-    user_agent: Mapped[Optional[str]] = mapped_column(String(500)) 
-    
+    user_agent: Mapped[Optional[str]] = mapped_column(String(500))
+
     data_hora: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), 
+        DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc)
     )
 
-    # Relacionamentos
     usuario: Mapped["Usuario"] = relationship()
     cliente: Mapped[Optional["Cliente"]] = relationship()
 
@@ -96,7 +85,7 @@ class PontoMonitoramento(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     cliente_id: Mapped[int] = mapped_column(ForeignKey("clientes.id"), nullable=False)
     nome_ponto: Mapped[str] = mapped_column(String(100), nullable=False)
-    tipo: Mapped[str] = mapped_column(String(50), nullable=False) 
+    tipo: Mapped[str] = mapped_column(String(50), nullable=False)
     latitude: Mapped[Optional[float]] = mapped_column(Numeric)
     longitude: Mapped[Optional[float]] = mapped_column(Numeric)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -129,8 +118,12 @@ class Documento(Base):
     ponto_id: Mapped[Optional[int]] = mapped_column(ForeignKey("pontos_monitoramento.id"))
     processo_id: Mapped[Optional[int]] = mapped_column(ForeignKey("processos.id"))
     tipo_documento: Mapped[str] = mapped_column(String(50), nullable=False)
-    competencia: Mapped[Optional[date]] = mapped_column(Date) 
+    competencia: Mapped[Optional[date]] = mapped_column(Date)
     url_arquivo: Mapped[str] = mapped_column(String(500), nullable=False)
+
+    # Hash SHA-256 do arquivo — prova de integridade documental
+    hash_arquivo: Mapped[Optional[str]] = mapped_column(String(64))
+
     data_upload: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     cliente: Mapped["Cliente"] = relationship(back_populates="documentos")
@@ -147,7 +140,7 @@ class NotificacaoWhatsApp(Base):
     documento_id: Mapped[Optional[int]] = mapped_column(ForeignKey("documentos.id"))
     numero_destino: Mapped[str] = mapped_column(String(20), nullable=False)
     mensagem: Mapped[str] = mapped_column(Text, nullable=False)
-    status_envio: Mapped[str] = mapped_column(String(20), nullable=False) 
+    status_envio: Mapped[str] = mapped_column(String(20), nullable=False)
     data_envio: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     cliente: Mapped["Cliente"] = relationship(back_populates="notificacoes")

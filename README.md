@@ -1,107 +1,145 @@
 # 🌿 Portal Ambiental
 
-Sistema completo para gestão de consultoria ambiental, permitindo o controle de clientes, pontos de monitoramento e disponibilização de laudos técnicos via portal web responsivo.
+Sistema completo para gestão de consultoria ambiental, com controle de clientes, pontos de monitoramento, disponibilização de laudos técnicos e auditoria eletrônica de acessos.
+
+---
 
 ## 🚀 Arquitetura e Tecnologias
 
-O sistema é dividido em dois motores principais:
+| Camada | Tecnologia |
+|---|---|
+| Backend (API) | FastAPI + SQLAlchemy Assíncrono |
+| Banco de Dados | PostgreSQL (Docker local / Render em produção) |
+| Migrações | Alembic |
+| Frontend | Streamlit |
+| Segurança | JWT (OAuth2) + Passlib bcrypt |
+| Infra | Docker Compose (local) / Render (produção) |
 
-* **Backend (API):** Desenvolvido com **FastAPI**, **SQLAlchemy** (Assíncrono) e **PostgreSQL** via Docker. Gerencia a inteligência e os dados.
-* **Frontend (Portal):** Desenvolvido com **Streamlit**, focado em oferecer uma interface rápida e responsiva para o cliente final.
-* **Banco de Dados:** **PostgreSQL** rodando em container Docker.
-* **Migrações:** **Alembic** para versionamento de schemas de banco.
+---
 
 ## ✨ Funcionalidades
 
-- [x] Cadastro relacional de Clientes e Pontos de Monitoramento (Poços/Efluentes).
-- [x] Upload de laudos (PDF, Excel, Word, Imagens) com validação de segurança.
-- [x] Portal do Cliente com filtro dinâmico por empresa.
-- [x] Download direto de arquivos via interface web com suporte a caracteres especiais.
+- [x] Cadastro relacional de Clientes com usuário vinculado
+- [x] Pontos de Monitoramento por cliente (Poços, Efluentes, etc.)
+- [x] Upload de laudos com validação de formato (PDF, Excel, Word, Imagens)
+- [x] Nomes de arquivo sanitizados com UUID para evitar colisões e path traversal
+- [x] Portal do Cliente — visualização e download de laudos
+- [x] Painel Administrativo — backoffice da equipe interna
+- [x] Auditoria eletrônica com IP, geolocalização e timestamp
+- [x] Heartbeat de sessão (última atividade do usuário em tempo real)
+- [x] Notificação via WhatsApp ao fazer upload de novo documento
+
+---
+
+## 🖥️ Interfaces
+
+### Portal do Cliente (`portal.py`)
+Acesso exclusivo para clientes da consultoria. Permite visualizar e baixar laudos técnicos com registro de auditoria a cada download.
+
+```bash
+streamlit run portal.py
+```
+
+### Painel Administrativo (`admin.py`)
+Backoffice restrito para a equipe interna. Permite cadastrar empresas, fazer upload de documentos e acompanhar logs de auditoria.
+
+```bash
+streamlit run admin.py --server.port 8502
+```
+
+---
 
 ## ⚙️ Configuração do Ambiente
 
-### 1. Backend e Banco de Dados
-Certifique-se de que o Docker está rodando e inicie o banco:
-\`\`\`bash
+### 1. Variáveis de Ambiente
+Crie um arquivo `.env` na raiz do projeto:
+
+```env
+SECRET_KEY=sua_chave_secreta_aqui
+DATABASE_URL=postgresql+asyncpg://usuario:senha@localhost:5432/ambiental
+MEU_NUMERO_TESTE=5500000000000
+```
+
+### 2. Backend e Banco de Dados
+
+```bash
+# Sobe o banco via Docker
 docker compose up -d
+
+# Aplica as migrações
 alembic upgrade head
-\`\`\`
 
-Instale as dependências do backend e inicie a API:
-\`\`\`bash
-pip install fastapi pydantic uvicorn sqlalchemy asyncpg alembic python-dotenv python-multipart
+# Instala dependências
+pip install fastapi pydantic uvicorn sqlalchemy asyncpg alembic \
+            python-dotenv python-multipart passlib[bcrypt] python-jose
+
+# Inicia a API
 uvicorn src.app.main:app --reload
-\`\`\`
+```
 
-### 2. Frontend (Portal do Cliente)
-Em um novo terminal, instale as dependências visuais e inicie o portal:
-\`\`\`bash
-pip install streamlit requests pandas
-streamlit run frontend/app.py
-\`\`\`
+### 3. Frontend
+
+```bash
+pip install streamlit requests streamlit-js-eval \
+            streamlit-autorefresh streamlit-javascript
+
+# Portal do cliente
+streamlit run portal.py
+
+# Painel admin (porta separada)
+streamlit run admin.py --server.port 8502
+```
+
+---
 
 ## 📖 Documentação da API
-Acesse os endpoints e testes via Swagger:
-* **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
-* **Portal Web:** [http://localhost:8501](http://localhost:8501)
 
-## 🔒 Segurança e Autenticação (JWT)
+| Interface | URL |
+|---|---|
+| Swagger UI | http://localhost:8000/docs |
+| Portal do Cliente | http://localhost:8501 |
+| Painel Admin | http://localhost:8502 |
 
-Esta API é protegida por autenticação OAuth2 com tokens JWT (JSON Web Tokens). A maioria das rotas está trancada e exige um "crachá digital" (token) para ser acessada.
+---
 
-### Como Autenticar via Swagger UI:
+## 🔒 Segurança e Autenticação
 
-1. **Crie um Usuário (Apenas 1ª vez):**
-   - Acesse a rota pública `POST /usuarios/`.
-   - Insira um e-mail e senha.
+A API usa OAuth2 com tokens JWT. As rotas são divididas em três níveis de acesso:
 
-2. **Faça o Login:**
-   - No topo da página do Swagger, clique no botão verde **Authorize** (ou use a rota `POST /token`).
-   - Insira seu e-mail (no campo username) e sua senha.
-   - O Swagger guardará seu Token automaticamente para as próximas requisições.
+| Nível | Rotas |
+|---|---|
+| Público | `POST /token` |
+| Autenticado (cliente) | `GET /clientes/{id}/documentos/`, `GET /clientes/{id}/pontos/`, `POST /auditoria/`, `POST /usuarios/ping` |
+| Admin only | `POST /clientes/`, `GET /clientes/`, `POST /usuarios/`, `GET /usuarios/`, `GET /auditoria/` |
 
-3. **Acesse as Rotas Protegidas:**
-   - Com o login feito, todas as rotas com o ícone de **cadeado** 🔒 estão liberadas.
-   - Rotas protegidas: Clientes, Pontos de Monitoramento e Upload de Documentos.
-  
-## 🖥️ Interfaces Visuais (Frontends)
+### Como autenticar via Swagger:
+1. Acesse `/docs`
+2. Clique em **Authorize**
+3. Insira e-mail (campo `username`) e senha
+4. Todas as rotas com 🔒 ficam liberadas
 
-O projeto possui duas aplicações separadas construídas com Streamlit, garantindo que clientes e administradores tenham acessos e visões totalmente isoladas.
+---
 
-**1. Portal do Cliente (`portal.py`)**
-- Acesso exclusivo para os clientes da consultoria.
-- Permite visualizar e baixar os laudos técnicos enviados.
-- **Como rodar:** `streamlit run portal.py`
+## 🛡️ Camada de Auditoria
 
-**2. Painel Administrativo (`admin.py`)**
-- Backoffice restrito para a equipe interna da consultoria.
-- Permite cadastrar novas empresas e fazer o upload de documentos e laudos.
-- **Como rodar:** `streamlit run admin.py --server.port 8502`
+Cada download de documento registra automaticamente:
 
-📝 Resumo da Atualização (Changelog)
-Nova Feature: Adicionada a rota GET /usuarios/ no motor FastAPI (src/app/main.py).
+| Campo | Descrição |
+|---|---|
+| `data_hora` | Timestamp UTC do evento |
+| `email_usuario` | Usuário autenticado |
+| `nome_empresa` | Empresa vinculada ao usuário |
+| `evento` | Tipo de ação (ex: `DOWNLOAD_DOCUMENTO`) |
+| `ip` | IP real capturado via JS (fallback: header do proxy) |
+| `latitude` / `longitude` | Coordenadas GPS do dispositivo (quando permitido) |
 
-Segurança: A nova rota está trancada e exige autenticação via token JWT (Depends(get_current_user)).
+---
 
-Integridade de Dados: O schema UsuarioResponse (src/app/schemas.py) garante que a API liste os e-mails e IDs dos clientes, mas as senhas (mesmo criptografadas) jamais sejam devolvidas ou expostas na internet.
+## 📋 Roadmap
 
-
-# Portal Ambiental
-
-Sistema de gestão e entrega de laudos técnicos com auditoria eletrônica.
-
-## 🚀 Status do Projeto
-- **Frente A (Infraestrutura):** Concluída (Login, Upload, Download Seguro).
-- **Frente B (Inteligência):** Em desenvolvimento (Dashboards e Auditoria).
-
-## 🛡️ Camada de Auditoria (Nova)
-Para garantir o compliance e a segurança jurídica, o sistema registra:
-- **Timestamp:** Data/hora exata do evento.
-- **Identidade:** Usuário e empresa vinculada.
-- **Rastro Digital:** Endereço IP e coordenadas geográficas (Lat/Long).
-- **Evento:** Login, visualização ou download de arquivos.
-
-## 🛠️ Tecnologias
-- **Backend:** FastAPI + SQLAlchemy + PostgreSQL
-- **Frontend:** Streamlit
-- **Segurança:** JWT (JSON Web Tokens) + Criptografia Passlib
+- [x] Infraestrutura — Login, Upload, Download Seguro
+- [x] Auditoria eletrônica com IP e geolocalização
+- [x] Separação de permissões admin vs. cliente
+- [ ] Fluxo de troca de senha obrigatória no primeiro acesso
+- [ ] Painel de auditoria no admin com filtros e exportação
+- [ ] Dashboard de telemetria (usuários online, downloads por período)

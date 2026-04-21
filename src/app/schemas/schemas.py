@@ -1,74 +1,79 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
-from datetime import datetime
-from datetime import date
+from datetime import datetime, date
 
-# A base de dados que o usuário precisa preencher
+
+# ==========================================
+# SCHEMAS DE CLIENTE
+# ==========================================
 class ClienteBase(BaseModel):
     nome: str
     cnpj: str
     whatsapp_contato: str
     email: str
-    senha_provisoria: str # Novo campo!
-    codigo_cliente: Optional[str] = None 
+    senha_provisoria: str
+    codigo_cliente: Optional[str] = None
+
+
+class ClienteCreate(ClienteBase):
+    pass
+
 
 class ClienteResponse(BaseModel):
     id: int
     nome: str
     cnpj: str
+    email: str
     whatsapp_contato: str
-    email: str   
-    
-class Config:
-        from_attributes = True     
-
-# Usado para CRIAR um cliente (herda a base)
-class ClienteCreate(ClienteBase):
-    pass
-
-# Usado para DEVOLVER os dados do cliente (inclui o ID e a data gerados pelo banco)
-class ClienteResponse(ClienteBase):
-    id: int
+    codigo_identificador: Optional[str] = None
     criado_em: datetime
 
     class Config:
-        from_attributes = True # Permite que o Pydantic leia dados do SQLAlchemy
+        from_attributes = True
 
 
-# --- Validação de dados para os pontos de monitoramento ---
-
+# ==========================================
+# SCHEMAS DE PONTO DE MONITORAMENTO
+# ==========================================
 class PontoMonitoramentoBase(BaseModel):
     nome_ponto: str
-    tipo: str # Ex: "Poço de Monitoramento", "Efluente Bruto"
+    tipo: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     ativo: bool = True
 
+
 class PontoMonitoramentoCreate(PontoMonitoramentoBase):
     pass
+
 
 class PontoMonitoramentoResponse(PontoMonitoramentoBase):
     id: int
     cliente_id: int
 
     class Config:
-        from_attributes = True        
+        from_attributes = True
 
 
-# ----Atualizar filtros
-
+# ==========================================
+# SCHEMAS DE DOCUMENTO
+# ==========================================
 class DocumentoBase(BaseModel):
-    tipo_documento: str # Ex: "Laudo Laboratorial", "Ofício"
+    tipo_documento: str
     competencia: Optional[date] = None
 
+
 class DocumentoCreate(DocumentoBase):
-    ponto_id: Optional[int] = None # Opcional, pois pode ser um documento geral da empresa
+    ponto_id: Optional[int] = None
+
 
 class DocumentoResponse(DocumentoBase):
     id: int
     cliente_id: int
-    ponto_id: Optional[int]
-    url_arquivo: str # Onde o arquivo está salvo
+    ponto_id: Optional[int] = None
+    processo_id: Optional[int] = None
+    url_arquivo: str
+    hash_arquivo: Optional[str] = None  # SHA-256 — prova de integridade
     data_upload: datetime
 
     class Config:
@@ -78,31 +83,31 @@ class DocumentoResponse(DocumentoBase):
 # ==========================================
 # SCHEMAS DE USUÁRIO E AUTENTICAÇÃO
 # ==========================================
-
 class UsuarioBase(BaseModel):
     email: EmailStr
     cliente_id: int
 
+
 class UsuarioCreate(UsuarioBase):
     senha: str
 
-# 👇 Essa é a classe que o GET vai usar para devolver a lista sem mostrar as senhas!
+
 class UsuarioResponse(UsuarioBase):
     id: int
-    #is_admin: bool  # Importante para o Admin saber o nível de acesso
-    # 🟢 O "PULO DO GATO": Adicionando o campo de telemetria
-    ultima_atividade: Optional[datetime] = None 
+    ultima_atividade: Optional[datetime] = None
 
     class Config:
         from_attributes = True
 
+
 class Token(BaseModel):
     access_token: str
     token_type: str
-    is_admin: bool = False  # Para o frontend saber se o usuário é admin e liberar as funcionalidades extras
+    is_admin: bool = False
+
 
 # ==========================================
-# SCHEMAS DE AUDITORIA E LOGS
+# SCHEMAS DE AUDITORIA
 # ==========================================
 class AuditoriaBase(BaseModel):
     evento: str
@@ -112,22 +117,20 @@ class AuditoriaBase(BaseModel):
     longitude: Optional[float] = None
     user_agent: Optional[str] = None
 
-# Para criar o log (O ID do usuário será pego direto do crachá de segurança!)
+
 class AuditoriaCreate(AuditoriaBase):
     pass
 
-# Para devolver o log no Painel Admin depois
+
 class AuditoriaResponse(AuditoriaBase):
     id: int
     usuario_id: int
-    data_hora: datetime
-    
-    # Adicionamos os campos novos na resposta
+    cliente_id: Optional[int] = None
     email_usuario: Optional[str] = None
     nome_empresa: Optional[str] = None
     cnpj_empresa: Optional[str] = None
     telefone_empresa: Optional[str] = None
+    data_hora: datetime
 
     class Config:
         from_attributes = True
-

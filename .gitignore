@@ -59,5 +59,6 @@ criar_admin.py
 reset_banco_local.py
 reset_nuclear.py
 migracao.py
+migracao_hash_arquivo.py    
 
 arquitetura.md

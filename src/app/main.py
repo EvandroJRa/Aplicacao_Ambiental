@@ -1,6 +1,7 @@
 import os
 import sys
 import uuid
+import hashlib
 import logging
 from datetime import date, datetime, timezone
 from typing import List, Optional
@@ -17,7 +18,7 @@ from sqlalchemy import select
 from src.app.database.session import get_db
 from src.app.models.models import Cliente, PontoMonitoramento, Documento, Usuario, Auditoria
 from src.app.schemas import schemas
-from src.app.notificacoes import enviar_aviso_laudo_whatsapp
+from src.app.notificacoes import notificar_documento_disponivel
 from src.app.seguranca import (
     obter_hash_senha, verificar_senha,
     criar_token_acesso, get_current_user
@@ -30,17 +31,16 @@ logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ==========================================
-# INICIALIZAÇÃO E CONFIGURAÇÕES DA API
+# INICIALIZAÇÃO
 # ==========================================
 app = FastAPI(title="API - Portal Ambiental", version="1.0.0")
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 os.makedirs("storage", exist_ok=True)
 app.mount("/storage", StaticFiles(directory="storage"), name="storage")
 
 # ==========================================
-# FORMATOS DE ARQUIVO PERMITIDOS
+# FORMATOS PERMITIDOS
 # ==========================================
 FORMATOS_PERMITIDOS = [
     "application/pdf",
@@ -54,7 +54,6 @@ FORMATOS_PERMITIDOS = [
 # HELPERS DE AUTORIZAÇÃO
 # ==========================================
 def exigir_admin(current_user: Usuario = Depends(get_current_user)) -> Usuario:
-    """Dependência que garante que apenas admins acessem a rota."""
     if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -67,10 +66,6 @@ def exigir_acesso_cliente(
     cliente_id: int,
     current_user: Usuario = Depends(get_current_user)
 ) -> Usuario:
-    """
-    Garante que o usuário só acesse dados do próprio cliente,
-    a menos que seja admin.
-    """
     if not current_user.is_admin and current_user.cliente_id != cliente_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -94,9 +89,8 @@ def raiz():
 async def criar_cliente_completo(
     dados: schemas.ClienteCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Usuario = Depends(exigir_admin)  # Apenas admins criam clientes
+    current_user: Usuario = Depends(exigir_admin)
 ):
-    # 1. Validação de integridade — evita duplicidade de CNPJ, e-mail ou WhatsApp
     query_conflito = await db.execute(
         select(Cliente).where(
             (Cliente.email == dados.email) |
@@ -113,14 +107,12 @@ async def criar_cliente_completo(
             campo = "CNPJ"
         else:
             campo = "WhatsApp"
-
         raise HTTPException(
             status_code=400,
             detail=f"Bloqueio de Integridade: {campo} já está em uso por outra empresa."
         )
 
     try:
-        # 2. Cadastro do cliente e usuário vinculado
         novo_cliente = Cliente(
             nome=dados.nome,
             cnpj=dados.cnpj,
@@ -129,17 +121,16 @@ async def criar_cliente_completo(
             codigo_identificador=dados.codigo_cliente
         )
         db.add(novo_cliente)
-        await db.flush()  # Gera o ID do cliente sem commitar ainda
+        await db.flush()
 
         novo_usuario = Usuario(
             email=dados.email,
             senha_hash=obter_hash_senha(dados.senha_provisoria),
             cliente_id=novo_cliente.id,
-            exigir_troca_senha=True  # TODO: implementar fluxo de troca antes do deploy
+            exigir_troca_senha=True  # TODO: implementar fluxo antes do deploy em produção
         )
         db.add(novo_usuario)
 
-        # 3. Registro de auditoria do cadastro
         novo_log = Auditoria(
             usuario_id=current_user.id,
             email_usuario=current_user.email,
@@ -150,22 +141,18 @@ async def criar_cliente_completo(
         db.add(novo_log)
 
         await db.commit()
-        return {
-            "status": "sucesso",
-            "id": novo_cliente.id,
-            "mensagem": "Cliente e usuário criados corretamente."
-        }
+        return {"status": "sucesso", "id": novo_cliente.id, "mensagem": "Cliente e usuário criados corretamente."}
 
     except Exception as e:
         await db.rollback()
         logger.exception("Erro ao criar cliente")
-        raise HTTPException(status_code=500, detail=f"Erro interno no servidor: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
 
 
 @app.get("/clientes/")
 async def listar_clientes(
     db: AsyncSession = Depends(get_db),
-    current_user: Usuario = Depends(exigir_admin)  # Apenas admins veem todos os clientes
+    current_user: Usuario = Depends(exigir_admin)
 ):
     result = await db.execute(select(Cliente))
     clientes = result.scalars().all()
@@ -185,10 +172,7 @@ async def listar_clientes(
 # ==========================================
 # ROTAS DE PONTOS DE MONITORAMENTO
 # ==========================================
-@app.post(
-    "/clientes/{cliente_id}/pontos/",
-    response_model=schemas.PontoMonitoramentoResponse
-)
+@app.post("/clientes/{cliente_id}/pontos/", response_model=schemas.PontoMonitoramentoResponse)
 async def criar_ponto_monitoramento(
     cliente_id: int,
     ponto: schemas.PontoMonitoramentoCreate,
@@ -203,10 +187,7 @@ async def criar_ponto_monitoramento(
     return novo_ponto
 
 
-@app.get(
-    "/clientes/{cliente_id}/pontos/",
-    response_model=List[schemas.PontoMonitoramentoResponse]
-)
+@app.get("/clientes/{cliente_id}/pontos/", response_model=List[schemas.PontoMonitoramentoResponse])
 async def listar_pontos_do_cliente(
     cliente_id: int,
     db: AsyncSession = Depends(get_db),
@@ -222,10 +203,7 @@ async def listar_pontos_do_cliente(
 # ==========================================
 # ROTAS DE DOCUMENTOS
 # ==========================================
-@app.post(
-    "/clientes/{cliente_id}/documentos/",
-    response_model=schemas.DocumentoResponse
-)
+@app.post("/clientes/{cliente_id}/documentos/", response_model=schemas.DocumentoResponse)
 async def upload_documento(
     cliente_id: int,
     background_tasks: BackgroundTasks,
@@ -242,34 +220,36 @@ async def upload_documento(
     if ponto_id == 0:
         ponto_id = None
 
-    # 1. Validação do formato do arquivo
     if arquivo.content_type not in FORMATOS_PERMITIDOS:
         raise HTTPException(
             status_code=400,
             detail=f"Formato inválido ({arquivo.content_type}). Envie apenas PDF, JPG, PNG, Excel ou Word."
         )
 
-    # 2. Verifica se o cliente existe
     cliente = await db.get(Cliente, cliente_id)
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente não encontrado.")
 
-    # 3. Sanitiza o nome do arquivo e garante unicidade (evita path traversal)
+    # Sanitiza nome e garante unicidade
     nome_seguro = os.path.basename(arquivo.filename or "arquivo")
     nome_unico = f"{cliente_id}_{uuid.uuid4().hex}_{nome_seguro}"
     caminho_arquivo = os.path.join("storage", nome_unico)
 
-    # 4. Lê o conteúdo antes de qualquer operação de I/O
+    # Lê o conteúdo uma única vez
     conteudo = await arquivo.read()
 
-    # 5. Persiste no banco PRIMEIRO — só salva o arquivo se o banco aceitar
+    # Calcula hash SHA-256 — prova de integridade do documento
+    hash_sha256 = hashlib.sha256(conteudo).hexdigest()
+
+    # Persiste no banco ANTES de salvar em disco
     novo_doc = Documento(
         cliente_id=cliente_id,
         ponto_id=ponto_id,
         processo_id=processo_id,
         tipo_documento=tipo_documento,
         competencia=competencia,
-        url_arquivo=caminho_arquivo
+        url_arquivo=caminho_arquivo,
+        hash_arquivo=hash_sha256
     )
     db.add(novo_doc)
 
@@ -281,27 +261,27 @@ async def upload_documento(
         logger.exception("Erro ao salvar documento no banco")
         raise HTTPException(status_code=500, detail=f"Erro ao registrar documento: {str(e)}")
 
-    # 6. Só salva o arquivo em disco após o commit bem-sucedido
+    # Salva o arquivo em disco apenas após commit bem-sucedido
     with open(caminho_arquivo, "wb") as buffer:
         buffer.write(conteudo)
 
-    # 7. Dispara notificação WhatsApp em segundo plano
-    if cliente.whatsapp_contato:
+    # Dispara WhatsApp + E-mail em segundo plano
+    if cliente.whatsapp_contato and cliente.email:
         numero_disparo = os.getenv("MEU_NUMERO_TESTE", cliente.whatsapp_contato)
         background_tasks.add_task(
-            enviar_aviso_laudo_whatsapp,
-            numero_destino=numero_disparo,
+            notificar_documento_disponivel,
+            email_destino=cliente.email,
+            numero_whatsapp=numero_disparo,
             nome_cliente=cliente.nome,
-            nome_documento=novo_doc.tipo_documento
+            nome_documento=novo_doc.tipo_documento,
+            hash_arquivo=hash_sha256
         )
 
+    logger.info(f"[UPLOAD] '{tipo_documento}' | Cliente {cliente_id} | Hash: {hash_sha256}")
     return novo_doc
 
 
-@app.get(
-    "/clientes/{cliente_id}/documentos/",
-    response_model=List[schemas.DocumentoResponse]
-)
+@app.get("/clientes/{cliente_id}/documentos/", response_model=List[schemas.DocumentoResponse])
 async def listar_documentos_do_cliente(
     cliente_id: int,
     db: AsyncSession = Depends(get_db),
@@ -321,11 +301,9 @@ async def listar_documentos_do_cliente(
 async def criar_usuario(
     usuario: schemas.UsuarioCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Usuario = Depends(exigir_admin)  # Apenas admins criam usuários
+    current_user: Usuario = Depends(exigir_admin)
 ):
-    resultado = await db.execute(
-        select(Usuario).where(Usuario.email == usuario.email)
-    )
+    resultado = await db.execute(select(Usuario).where(Usuario.email == usuario.email))
     if resultado.scalars().first():
         raise HTTPException(status_code=400, detail="Este e-mail já está cadastrado.")
 
@@ -343,23 +321,22 @@ async def criar_usuario(
 @app.get("/usuarios/", response_model=List[schemas.UsuarioResponse])
 async def listar_usuarios(
     db: AsyncSession = Depends(get_db),
-    current_user: Usuario = Depends(exigir_admin)  # Apenas admins listam usuários
+    current_user: Usuario = Depends(exigir_admin)
 ):
     resultado = await db.execute(select(Usuario))
     return resultado.scalars().all()
 
 
 # ==========================================
-# ROTA DE LOGIN
+# ROTA DE LOGIN — com registro de auditoria
 # ==========================================
 @app.post("/token", response_model=schemas.Token)
 async def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db)
 ):
-    resultado = await db.execute(
-        select(Usuario).where(Usuario.email == form_data.username)
-    )
+    resultado = await db.execute(select(Usuario).where(Usuario.email == form_data.username))
     usuario = resultado.scalars().first()
 
     if not usuario or not verificar_senha(form_data.password, usuario.senha_hash):
@@ -369,7 +346,35 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Inclui is_admin no token para o portal poder verificar sem chamada extra
+    # Captura IP e user agent do login
+    ip_proxy = request.headers.get("x-forwarded-for")
+    ip_login = ip_proxy.split(",")[0].strip() if ip_proxy else (
+        request.client.host if request.client else "desconhecido"
+    )
+    user_agent_login = request.headers.get("user-agent")
+
+    # Busca nome da empresa
+    nome_empresa = "Admin/Apoio"
+    if usuario.cliente_id:
+        cliente_db = await db.get(Cliente, usuario.cliente_id)
+        if cliente_db:
+            nome_empresa = cliente_db.nome
+
+    # Registra LOGIN na auditoria
+    log_login = Auditoria(
+        usuario_id=usuario.id,
+        cliente_id=usuario.cliente_id,
+        email_usuario=usuario.email,
+        nome_empresa=nome_empresa,
+        evento="LOGIN",
+        detalhes="Login realizado com sucesso.",
+        ip=ip_login,
+        user_agent=user_agent_login,
+        data_hora=datetime.now(timezone.utc)
+    )
+    db.add(log_login)
+    await db.commit()
+
     dados_token = {
         "sub": usuario.email,
         "cliente_id": usuario.cliente_id,
@@ -407,12 +412,9 @@ async def registrar_auditoria(
     db: AsyncSession = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    logger.info("--- REGISTRO DE AUDITORIA ---")
-    logger.info(f"USUARIO: {current_user.email}")
-    logger.info(f"BODY IP: {item.ip}")
+    logger.info(f"[AUDITORIA] {item.evento} | {current_user.email} | IP: {item.ip}")
 
-    # Resolve o IP: prioriza o que o portal enviou via JS,
-    # cai para o header do proxy se vier vazio ou inválido
+    # Resolve IP
     valores_invalidos = {"", "None", "null", "Não capturado", "Aguardando JS..."}
     ip_final = item.ip if item.ip and item.ip not in valores_invalidos else None
 
@@ -422,24 +424,26 @@ async def registrar_auditoria(
             request.client.host if request.client else "desconhecido"
         )
 
-    # Busca nome da empresa para o log ficar legível
-    nome_empresa_logada = "Admin/Apoio"
+    # Resolve user agent — prioriza o que o portal enviou
+    user_agent_final = item.user_agent or request.headers.get("user-agent")
+
+    nome_empresa = "Admin/Apoio"
     if current_user.cliente_id:
         cliente_db = await db.get(Cliente, current_user.cliente_id)
         if cliente_db:
-            nome_empresa_logada = cliente_db.nome
+            nome_empresa = cliente_db.nome
 
     novo_log = Auditoria(
         usuario_id=current_user.id,
         cliente_id=current_user.cliente_id,
         email_usuario=current_user.email,
-        nome_empresa=nome_empresa_logada,
+        nome_empresa=nome_empresa,
         evento=item.evento,
         detalhes=item.detalhes,
         ip=ip_final,
         latitude=item.latitude,
         longitude=item.longitude,
-        user_agent=item.user_agent,
+        user_agent=user_agent_final,
         data_hora=datetime.now(timezone.utc)
     )
 
@@ -452,11 +456,9 @@ async def registrar_auditoria(
 @app.get("/auditoria/")
 async def listar_auditoria(
     db: AsyncSession = Depends(get_db),
-    current_user: Usuario = Depends(exigir_admin)  # Apenas admins veem os logs
+    current_user: Usuario = Depends(exigir_admin)
 ):
-    result = await db.execute(
-        select(Auditoria).order_by(Auditoria.data_hora.desc())
-    )
+    result = await db.execute(select(Auditoria).order_by(Auditoria.data_hora.desc()))
     return result.scalars().all()
 
 
