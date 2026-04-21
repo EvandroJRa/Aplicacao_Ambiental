@@ -6,32 +6,34 @@ from streamlit_js_eval import get_geolocation
 from streamlit_autorefresh import st_autorefresh
 from streamlit_javascript import st_javascript
 
+
+# Configurações iniciais da página
 # Endereço do nosso motor FastAPI
 API_URL = "https://aplicacao-ambiental.onrender.com"
 
+st.set_page_config(page_title="Portal Ambiental", page_icon="🌿", layout="centered")
+
 #######################captura do IP real do usuário via JavaScript (usando ipify)
-url_ip = "https://api64.ipify.org?format=json"
-client_ip_json = st_javascript(f'fetch("{url_ip}").then(response => response.json())')
+# 2. Captura do IP (JavaScript)
+# Adicionamos um pequeno delay visual ou garantia de retorno
+client_ip_json = st_javascript('fetch("https://api64.ipify.org?format=json").then(response => response.json())')
 
-ip_usuario = None
-if client_ip_json and isinstance(client_ip_json, dict):
-    ip_usuario = client_ip_json.get("ip")
-
-# Ajuste a função de auditoria para enviar esse IP
 def registrar_auditoria_portal(doc):
+    # Tenta pegar o IP do componente JS. Se ainda não carregou, envia "Aguardando..."
+    ip_final = "Não capturado"
+    if client_ip_json and isinstance(client_ip_json, dict):
+        ip_final = client_ip_json.get("ip")
+    
     dados_auditoria = {
         "evento": "DOWNLOAD_DOCUMENTO",
         "detalhes": f"Baixou: {doc['tipo_documento']} (ID: {doc['id']})",
-        "latitude": latitude,
+        "latitude": latitude, # Certifique-se que 'latitude' existe no escopo
         "longitude": longitude,
-        "ip": ip_usuario # <--- Enviando o IP real capturado no navegador
+        "ip": ip_final 
     }
+    
     headers = {"Authorization": f"Bearer {st.session_state['token']}"}
     requests.post(f"{API_URL}/auditoria/", json=dados_auditoria, headers=headers)
-
-# Configurações iniciais da página
-
-st.set_page_config(page_title="Portal Ambiental", page_icon="🌿", layout="centered")
 
 # ==========================================
 # 1. CAPTURA DE LOCALIZAÇÃO (GPS)

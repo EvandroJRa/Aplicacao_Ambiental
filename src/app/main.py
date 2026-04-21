@@ -319,34 +319,29 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
 @app.post("/auditoria/", status_code=201)
 async def registrar_auditoria(
     item: schemas.AuditoriaCreate, 
-    request: Request, # <--- ADICIONADO AQUI - cap ip real do cliente
+    request: Request, 
     db: AsyncSession = Depends(get_db), 
     current_user: Usuario = Depends(get_current_user)
 ):
-    # Se o Portal enviou um IP (capturado via JS), usamos ele. 
-    # Caso contrário, tentamos pegar do Header (útil para acessos diretos à API).
+    # 1. Tenta pegar o IP que o Portal enviou (via JavaScript)
     ip_final = item.ip 
     
-    if not ip_final or ip_final == "Capturado via Portal":
-        ip_real = request.headers.get("x-forwarded-for")
-        ip_final = ip_real.split(",")[0] if ip_real else request.client.host
+    # 2. Se o portal mandou vazio, texto de erro ou nulo, buscamos o IP da conexão
+    # Isso resolve o problema de IPs iguais caso o JS falhe ou demore
+    if not ip_final or ip_final in ["Não capturado", "None", "null", "Capturado via Portal"]:
+        # Busca no header do Render (x-forwarded-for)
+        ip_proxy = request.headers.get("x-forwarded-for")
+        ip_final = ip_proxy.split(",")[0] if ip_proxy else request.client.host
 
-    # Captura o IP Real através do Proxy do Render
-    # O 'x-forwarded-for' contém o IP do cliente antes de passar pelo balanceador do Render
-    ip_real = request.headers.get("x-forwarded-for")
-    if ip_real:
-        ip_real = ip_real.split(",")[0] # Pega o primeiro IP da lista
-    else:
-        ip_real = request.client.host # Fallback para local
-
+    # 3. Busca o nome da empresa para o log ficar amigável
     nome_empresa_logada = "Admin/Apoio"
-    
     if current_user.cliente_id:
         from src.app.models.models import Cliente
         cliente_db = await db.get(Cliente, current_user.cliente_id)
         if cliente_db:
             nome_empresa_logada = cliente_db.nome
 
+    # 4. Grava no banco de dados
     novo_log = Auditoria(
         usuario_id=current_user.id,
         cliente_id=current_user.cliente_id,
@@ -355,12 +350,13 @@ async def registrar_auditoria(
         detalhes=item.detalhes,
         latitude=item.latitude,
         longitude=item.longitude,
-        ip =ip_final, # <--- Usa o IP final determinado pelo IP final
-        #ip=ip_real, # <--- AGORA USA O IP REAL CAPTURADO
+        ip=ip_final, # <--- IP consolidado (JS ou Proxy)
         nome_empresa=nome_empresa_logada
     )
+    
     db.add(novo_log)
     await db.commit()
+    
     return {"status": "registrado", "evento": item.evento, "ip_rastreado": ip_final}
 
 # ==========================================
