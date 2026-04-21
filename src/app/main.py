@@ -324,10 +324,6 @@ async def registrar_auditoria(
     current_user: Usuario = Depends(get_current_user)
 ):
     print("=== NOVO REGISTRO DE AUDITORIA inicio do sistema ===")
-    print(f"Recebendo auditoria: Evento='{item.evento}', Detalhes='{item.detalhes}', IP do JS='{item.ip}'")
-    print(f"Headers da requisição: {request.headers}")
-    print(f"Cliente: {current_user}")
-    print(f"Token: {request.access_token}")
     print(f"DEBUG HEADERS: {dict(request.headers)}")
 
     # 1. Tenta pegar o IP que o Portal enviou (via JavaScript)
