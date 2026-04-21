@@ -15,21 +15,20 @@ st.set_page_config(page_title="Portal Ambiental", page_icon="🌿", layout="cent
 
 #######################captura do IP real do usuário via JavaScript (usando ipify)
 # 2. Captura do IP (JavaScript)
-# Adicionamos um pequeno delay visual ou garantia de retorno
-client_ip_json = st_javascript('fetch("https://api64.ipify.org?format=json").then(response => response.json())')
+js_code = 'await fetch("https://api64.ipify.org?format=json").then(res => res.json()).then(data => data.ip)'
+ip_usuario = st_javascript(js_code)
 
 def registrar_auditoria_portal(doc):
-    # Tenta pegar o IP do componente JS. Se ainda não carregou, envia "Aguardando..."
-    ip_final = "Não capturado"
-    if client_ip_json and isinstance(client_ip_json, dict):
-        ip_final = client_ip_json.get("ip")
+    # Se o JS ainda não carregou, o ip_usuario será 0 ou None. 
+    # Vamos garantir que ele envie uma string para a API não ignorar.
+    envio_ip = str(ip_usuario) if ip_usuario else "Aguardando JS..."
     
     dados_auditoria = {
         "evento": "DOWNLOAD_DOCUMENTO",
-        "detalhes": f"Baixou: {doc['tipo_documento']} (ID: {doc['id']})",
-        "latitude": latitude, # Certifique-se que 'latitude' existe no escopo
-        "longitude": longitude,
-        "ip": ip_final 
+        "detalhes": f"Baixou: {doc['tipo_documento']}",
+        "ip": envio_ip, 
+        "latitude": latitude,
+        "longitude": longitude
     }
     
     headers = {"Authorization": f"Bearer {st.session_state['token']}"}
