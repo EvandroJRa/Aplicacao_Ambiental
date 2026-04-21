@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import base64
 import json
+import time
 from streamlit_js_eval import get_geolocation
 from streamlit_autorefresh import st_autorefresh
 from streamlit_javascript import st_javascript
